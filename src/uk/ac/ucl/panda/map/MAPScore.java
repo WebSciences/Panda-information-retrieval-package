@@ -57,9 +57,9 @@ public class MAPScore {
 	 * etc and var folder locations
 	 */
 	private final static String PANDA_ETC = System.getProperty("panda.etc",
-			"../Panda/etc/");
+			"./etc/");
 	private final static String PANDA_VAR = System.getProperty("panda.var",
-			"../Panda/var/");
+			"./var/");
 	protected static String fileseparator = System
 			.getProperty("file.separator");
 
