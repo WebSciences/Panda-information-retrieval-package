@@ -1,0 +1,539 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package uk.ac.ucl.panda.applications.evaluation.trec;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Vector;
+import uk.ac.ucl.panda.indexing.io.FilterIndexReader;
+import uk.ac.ucl.panda.indexing.io.IndexReader;
+import uk.ac.ucl.panda.retrieval.ScoreDoc;
+import uk.ac.ucl.panda.retrieval.Searcher;
+import uk.ac.ucl.panda.retrieval.TopDocCollector;
+import uk.ac.ucl.panda.retrieval.TopDocs;
+import uk.ac.ucl.panda.retrieval.query.QualityQuery;
+import uk.ac.ucl.panda.retrieval.query.Query;
+import uk.ac.ucl.panda.utility.io.DocNameExtractor;
+import uk.ac.ucl.panda.utility.io.SubmissionReport;
+import uk.ac.ucl.panda.utility.parser.QualityQueryParser;
+import uk.ac.ucl.panda.utility.structure.Term;
+import uk.ac.ucl.panda.utility.structure.TermFreqVector;
+
+
+/**
+ * Main entry point for running a quality benchmark.
+ * <p>
+ * There are two main configurations for running a quality benchmark: <ul>
+ * <li>Against existing judgements.</li>
+ * <li>For submission (e.g. for a contest).</li>
+ * </ul>
+ * The first configuration requires a non null
+ * {@link org.apache.lucene.benchmark.quality.Judge Judge}. 
+ * The second configuration requires a non null 
+ * {@link org.apache.lucene.benchmark.quality.utils.SubmissionReport SubmissionLogger}.
+ */
+public class QualityBenchmark {
+
+  /** Quality Queries that this quality benchmark would execute. */
+  protected QualityQuery qualityQueries[];
+  
+  /** Parser for turning QualityQueries into Lucene Queries. */
+  protected QualityQueryParser qqParser;
+  
+  /** Index to be searched. */
+  protected Searcher searcher;
+
+  /** Index to be indexreader. */
+  protected  IndexReader reader;
+
+  /** index field to extract doc name for each search result; used for judging the results. */  
+  protected String docNameField;
+
+  protected String docDataField ="body";
+  
+  /** maximal number of queries that this quality benchmark runs. Default: maxint. Useful for debugging. */
+  private int maxQueries = Integer.MAX_VALUE;
+  
+  /** maximal number of results to collect for each query. Default: 1000. */
+  private int maxResults = 1000;
+
+  /**
+   * Create a QualityBenchmark.
+   * @param qqs quality queries to run.
+   * @param qqParser parser for turning QualityQueries into Lucene Queries. 
+   * @param searcher index to be searched.
+   * @param docNameField name of field containg the document name.
+   *        This allows to extract the doc name for search results,
+   *        and is important for judging the results.  
+   */
+  public QualityBenchmark(QualityQuery qqs[], QualityQueryParser qqParser, 
+      String index, String docNameField) throws FileNotFoundException, IOException, ClassNotFoundException {
+    this.qualityQueries = qqs;
+    this.qqParser = qqParser;
+    this.searcher = new Searcher(index);
+    this.reader=IndexReader.open(index);
+    this.docNameField = docNameField;
+  }
+
+  /**
+   * Run the quality benchmark.
+   * @param judge the judge that can tell if a certain result doc is relevant for a certain quality query. 
+   *        If null, no judgements would be made. Usually null for a submission run. 
+   * @param submitRep submission report is created if non null.
+   * @param qualityLog If not null, quality run data would be printed for each query.
+   * @return QualityStats of each quality query that was executed.
+   * @throws Exception if quality benchmark failed to run.
+   */
+  
+  //ucl batch
+   public  QualityStats [] execute(Judge judge, SubmissionReport submitRep, 
+                                  PrintWriter qualityLog, PrintWriter scorelogger) throws Exception {
+          return execute(judge, submitRep,qualityLog, scorelogger, 0,0);
+
+   }
+
+   public  QualityStats [] execute(Judge judge, SubmissionReport submitRep,
+                                  PrintWriter qualityLog, PrintWriter scorelogger, double a1, double a2) throws Exception {
+    int nQueries = Math.min(maxQueries, qualityQueries.length);
+    QualityStats stats[] = new QualityStats[nQueries]; 
+    ///////////
+  //  System.out.println("Number of queries "+nQueries);
+    /////////////
+    
+    for (int i=0; i<nQueries; i++) {
+      QualityQuery qq = qualityQueries[i];
+      // generate query
+           Query q = qqParser.parse(qq);
+      // search with this query 
+ long t1 = System.currentTimeMillis();
+      TopDocs td = searcher.search(q,null,maxResults, a1);
+     
+
+      /////////////////////////////
+      //ucl
+
+       TopDocs f_td = td;
+      if(a2!=0){
+        f_td = Correlation_Adjust(q, td, a2);
+      }
+    
+        
+
+ long searchTime = System.currentTimeMillis()-t1;
+
+      outresult(qq, f_td, scorelogger);
+/////////////////////////////
+
+      //most likely we either submit or judge, but check both
+      if (judge!=null) {
+        stats[i] = analyzeQueryResults(qq, q, f_td, judge, qualityLog, searchTime);
+      }
+      if (submitRep!=null) {
+        submitRep.report(qq,f_td,docNameField,searcher);
+      }
+    }
+    if (submitRep!=null) {
+      submitRep.flush();
+    }
+
+    return stats;
+  
+
+   
+  }
+
+<<<<<<< .mine
+
+    public  QualityStats [] execute_var(Judge judge, SubmissionReport submitRep,
+                                  PrintWriter qualityLog, PrintWriter scorelogger, double a1, double a2) throws Exception {
+    int nQueries = Math.min(maxQueries, qualityQueries.length);
+    QualityStats stats[] = new QualityStats[nQueries];
+    ///////////
+  //  System.out.println("Number of queries "+nQueries);
+    /////////////
+
+    for (int i=0; i<nQueries; i++) {
+      QualityQuery qq = qualityQueries[i];
+      // generate query
+           Query q = qqParser.parse(qq);
+      // search with this query
+ long t1 = System.currentTimeMillis();
+      TopDocs td = searcher.search_var(q,null,maxResults, a1);
+
+
+      /////////////////////////////
+      //ucl
+
+       TopDocs f_td = td;
+      if(a2!=0){
+        f_td = Correlation_Adjust(td, a2);
+      }
+
+
+
+ long searchTime = System.currentTimeMillis()-t1;
+
+      outresult(qq, f_td, scorelogger);
+/////////////////////////////
+
+      //most likely we either submit or judge, but check both
+      if (judge!=null) {
+        stats[i] = analyzeQueryResults(qq, q, f_td, judge, qualityLog, searchTime);
+      }
+      if (submitRep!=null) {
+        submitRep.report(qq,f_td,docNameField,searcher);
+      }
+    }
+    if (submitRep!=null) {
+      submitRep.flush();
+    }
+
+    return stats;
+
+
+
+  }
+
+
+    public  QualityStats [] execute_plot(Judge judge, SubmissionReport submitRep,
+                                  PrintWriter qualityLog, PrintWriter scorelogger, double a1, double a2, PrintWriter relScoreLogger) throws Exception {
+    int nQueries = Math.min(maxQueries, qualityQueries.length);
+    QualityStats stats[] = new QualityStats[nQueries];
+    ///////////
+  //  System.out.println("Number of queries "+nQueries);
+    /////////////
+
+    for (int i=0; i<nQueries; i++) {
+      QualityQuery qq = qualityQueries[i];
+      // generate query
+           Query q = qqParser.parse(qq);
+
+      // search with this query
+ long t1 = System.currentTimeMillis();
+      TopDocs td = searcher.search_plot(q,null,maxResults, a1);
+
+
+      /////////////////////////////
+      //ucl
+
+       TopDocs f_td = td;
+      if(a2!=0){
+        f_td = Correlation_Adjust(td, a2);
+      }
+
+
+
+ long searchTime = System.currentTimeMillis()-t1;
+
+      outresult(qq, f_td, scorelogger);
+/////////////////////////////
+
+      //most likely we either submit or judge, but check both
+      if (judge!=null) {
+        stats[i] = analyzeQueryResults_plot(qq, q, f_td, judge, qualityLog, searchTime, relScoreLogger);
+      }
+      if (submitRep!=null) {
+        submitRep.report(qq,f_td,docNameField,searcher);
+      }
+    }
+    if (submitRep!=null) {
+      submitRep.flush();
+    }
+
+    return stats;
+
+
+
+  }
+
+
+   //Correlation adjust the TOP 10 rank
+    private TopDocs Correlation_Adjust(TopDocs td, double c) throws IOException {
+=======
+   //Correlation adjust the TOP 20 rank
+    private TopDocs Correlation_Adjust(Query q, TopDocs td, double c) throws IOException {
+>>>>>>> .r275
+        TopDocs f_td = td;
+        ScoreDoc temp[] = f_td.scoreDocs;
+    //    System.out.println("number: "+temp.length);
+        TopDocCollector collector = null;
+        // how many document to adjust
+        int adjustnum=20;
+        if(adjustnum>=temp.length) adjustnum=temp.length/2;
+        for(int d=0; d < adjustnum ; d++){
+            collector = new TopDocCollector(temp.length);
+            for(int j = 0; j <=d ; j++){
+                collector.collect(temp[j].doc, temp[j].score+100.0d);
+            }
+            for(int i = d+1; i < temp.length ; i++){
+               temp[i].score-=c *query_correlation(q,temp[d].doc,temp[i].doc);
+          //      System.out.println(temp[d].doc+"  "+temp[i].doc);
+          //       System.out.println("Score: "+temp[i].score + " Correlation: "+correlation(temp[d].doc,temp[i].doc));
+                collector.collect(temp[i].doc, temp[i].score);
+            }
+               f_td  = collector.topDocs();
+                temp = f_td.scoreDocs;
+        }
+        return f_td;
+    }
+
+
+    private double query_correlation(Query q, int a, int b) throws IOException{
+        double score=0;
+         TermFreqVector doc_a=reader.getTermFreqVector(a, docDataField);
+         ///////////////
+        // if( doc_a==null) System.out.println("doc_a is null");
+         ///////////////
+         TermFreqVector doc_b=reader.getTermFreqVector(b, docDataField);
+         double DocNum = reader.numDocs();
+        double df=0;
+
+        double idf= 0;
+         int term_num = 0;
+         Vector queryterm = q.getTerm();
+          HashMap query_map = new HashMap();
+          HashMap term_map = new HashMap();
+          HashMap map_a =new HashMap();
+           HashMap map_b =new HashMap();
+           double avg_a =0;
+           double avg_b=0;
+
+            for(Iterator   iterator   =  queryterm.iterator();   iterator.hasNext();)
+            {
+                  term_num++;
+                  Term term = (Term)iterator.next();
+                  String qterm = term.toString();
+                  query_map.put(qterm, qterm);
+                  term_map.put(qterm,term );
+                  map_a.put(qterm, (Double)0.0);
+                  map_b.put(qterm, (Double)0.0);
+            }
+            //doc a
+           String terms[] = doc_a.getTerms();
+         int freq[] = doc_a.getTermFrequencies();
+          for(int i = 0; i < terms.length ; i++){
+             
+            if(query_map.containsKey(terms[i])) {
+               // System.out.println(terms[i]+" "+freq[i]);
+                 df= reader.docFreq((Term)term_map.get(terms[i]));
+
+                 idf= Math.log(DocNum/df);
+
+                map_a.put(terms[i],idf* freq[i]);
+                avg_a+=freq[i];
+            }
+
+         }
+         avg_a = avg_a/term_num;
+            //doc b
+          terms = doc_b.getTerms();
+          freq = doc_b.getTermFrequencies();
+          for(int i = 0; i < terms.length ; i++){
+            
+            if(query_map.containsKey(terms[i])){
+                  df= reader.docFreq((Term)term_map.get(terms[i]));
+
+                 idf= Math.log(DocNum/df);
+              //   System.out.println(idf);
+                map_b.put(terms[i], idf*freq[i]);
+                avg_b+=freq[i];
+            }
+         }
+         avg_b = avg_b/term_num;
+
+         Collection  Cterm=query_map.values();
+          //compute correlation
+         double sum_up = 0;
+         double sum_a = 0;
+         double sum_b = 0;
+
+  for   (Iterator   iterator   =  Cterm.iterator();   iterator.hasNext();)
+  {
+
+           double V_a = 0;
+           double V_b = 0;
+           String term = (String)iterator.next();
+           V_a = (Double) map_a.get(term);
+           V_b = (Double) map_b.get(term);
+           sum_up += (1.0d* V_a - avg_a)*(1.0d * V_b - avg_b);
+           sum_a += (1.0d* V_a - avg_a) * (1.0d* V_a - avg_a);
+           sum_b += (1.0d* V_b - avg_b) * (1.0d* V_b - avg_b);
+
+  }
+        score = sum_up / (Math.sqrt(sum_a * sum_b));
+
+
+        return score;
+
+    }
+
+
+    //Pearson's product-moment coefficient
+    private double correlation(int a, int b) throws IOException{
+        double score= 0;
+         TermFreqVector doc_a=reader.getTermFreqVector(a, docDataField);
+         ///////////////
+        // if( doc_a==null) System.out.println("doc_a is null");
+         ///////////////
+         TermFreqVector doc_b=reader.getTermFreqVector(b, docDataField);
+
+         //stroe all the term freq in hashmap
+         HashMap term_map =new HashMap();
+         HashMap map_a =new HashMap();
+         String terms[] = doc_a.getTerms();
+         int freq[] = doc_a.getTermFrequencies();
+         double ave_a = 0;
+         for(int i = 0; i < terms.length ; i++){
+            map_a.put(terms[i], freq[i]);
+            term_map.put(terms[i], terms[i]);
+            ave_a +=freq[i];
+         }
+         ave_a = ave_a / terms.length;
+
+          double ave_b = 0;
+         HashMap map_b =new HashMap();
+         terms = doc_b.getTerms();
+         freq = doc_b.getTermFrequencies();
+         for(int i = 0; i < terms.length ; i++){
+            map_b.put(terms[i], freq[i]);
+            term_map.put(terms[i], terms[i]);
+             ave_b +=freq[i];
+         }
+         ave_b = ave_b / terms.length;
+         //compute correlation
+         double sum_up = 0;
+         double sum_a = 0;
+         double sum_b = 0;
+
+        Collection  Cterm=term_map.values();
+
+  for   (Iterator   iterator   =  Cterm.iterator();   iterator.hasNext();)
+  {
+      int V_a = 0;
+      int V_b = 0;
+      String term = (String)iterator.next();
+      if(map_a.containsKey(term))V_a = (Integer) map_a.get(term);
+      if(map_b.containsKey(term))V_b = (Integer) map_b.get(term);
+      sum_up += (1.0d* V_a - ave_a)*(1.0d * V_b - ave_b);
+      sum_a += (1.0d* V_a - ave_a) * (1.0d* V_a - ave_a);
+      sum_b += (1.0d* V_b - ave_b) * (1.0d* V_b - ave_b);
+
+  }
+        score = sum_up / (Math.sqrt(sum_a * sum_b));
+
+
+        return score;
+    }
+
+  //UCL
+  private void outresult(QualityQuery qq, TopDocs td, PrintWriter logger) throws IOException{
+    ScoreDoc sd[] = td.scoreDocs;
+    DocNameExtractor xt = new DocNameExtractor(docNameField);
+  //  System.out.println( sd.length );
+    for (int i=0; i<sd.length; i++) {
+      String docName = xt.docName(searcher,sd[i].doc);
+     if (logger!=null) {
+      logger.println(qq.getQueryID()+'\t'+"Q0"+'\t'+docName+'\t'+i+'\t'+sd[i].score+'\t'+"test");
+    }
+    
+    }
+    
+    
+  }
+  
+ 
+
+
+  /* Analyze/judge results for a single quality query; optionally log them. */  
+  private QualityStats analyzeQueryResults(QualityQuery qq, Query q, TopDocs td, Judge judge, PrintWriter logger, long searchTime) throws IOException {
+    QualityStats stts = new QualityStats(judge.maxRecall(qq),searchTime);
+    ScoreDoc sd[] = td.scoreDocs;
+    long t1 = System.currentTimeMillis(); // extraction of first doc name we meassure also construction of doc name extractor, just in case.
+    DocNameExtractor xt = new DocNameExtractor(docNameField);
+  //  System.out.println( sd.length );
+    for (int i=0; i<sd.length; i++) {
+      String docName = xt.docName(searcher,sd[i].doc);
+    
+   //   System.out.println( sd[i].doc);
+      long docNameExtractTime = System.currentTimeMillis() - t1;
+      t1 = System.currentTimeMillis();
+      boolean isRelevant = judge.isRelevant(docName,qq);
+      stts.addResult(i+1,isRelevant, docNameExtractTime);
+    }
+    if (logger!=null) {
+      logger.println(qq.getQueryID()+"  -  "+q);
+      stts.log(qq.getQueryID()+" Stats:",1,logger,"  ");
+    }
+    return stts;
+  }
+//
+   private QualityStats analyzeQueryResults_plot(QualityQuery qq, Query q, TopDocs td, Judge judge, PrintWriter logger, long searchTime, PrintWriter relScoreLogger)
+           throws IOException {
+    QualityStats stts = new QualityStats(judge.maxRecall(qq),searchTime);
+    ScoreDoc sd[] = td.scoreDocs;
+    long t1 = System.currentTimeMillis(); // extraction of first doc name we meassure also construction of doc name extractor, just in case.
+    DocNameExtractor xt = new DocNameExtractor(docNameField);
+  //  System.out.println( sd.length );
+    for (int i=0; i<sd.length; i++) {
+      String docName = xt.docName(searcher,sd[i].doc);
+
+   //   System.out.println( sd[i].doc);
+      long docNameExtractTime = System.currentTimeMillis() - t1;
+      t1 = System.currentTimeMillis();
+      boolean isRelevant = judge.isRelevant(docName,qq);
+      if (isRelevant) relScoreLogger.println(docName + "	" + qq.getQueryID() + "	"+ i  +"	" + sd[i].score);
+      stts.addResult(i+1,isRelevant, docNameExtractTime);
+    }
+    if (logger!=null) {
+      logger.println(qq.getQueryID()+"  -  "+q);
+      stts.log(qq.getQueryID()+" Stats:",1,logger,"  ");
+    }
+    return stts;
+  }
+  /**
+   * @return the maximum number of quality queries to run. Useful at debugging.
+   */
+  public int getMaxQueries() {
+    return maxQueries;
+  }
+
+  /**
+   * Set the maximum number of quality queries to run. Useful at debugging.
+   */
+  public void setMaxQueries(int maxQueries) {
+    this.maxQueries = maxQueries;
+  }
+
+  /**
+   * @return the maximum number of results to collect for each quality query.
+   */
+  public int getMaxResults() {
+    return maxResults;
+  }
+
+  /**
+   * set the maximum number of results to collect for each quality query.
+   */
+  public void setMaxResults(int maxResults) {
+    this.maxResults = maxResults;
+  }
+
+}
