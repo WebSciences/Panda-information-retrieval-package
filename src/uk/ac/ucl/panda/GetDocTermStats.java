@@ -23,7 +23,7 @@ public class GetDocTermStats {
 	public IndexReader rdr;
 	protected String fileseparator = System.getProperty("file.separator");
 	private final static String PANDA_ETC = System.getProperty("panda.etc",
-			"../Panda/etc/");
+			"./etc/");
 
 	/**
 	 * Initialize the class, locates the document index automatically from the
