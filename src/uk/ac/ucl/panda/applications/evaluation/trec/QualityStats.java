@@ -50,6 +50,7 @@ public class QualityStats {
   private double Ten_call = 0;
   private long searchTime;
   private long docNamesExtractTime;
+  private double MAP = 0;
 
   /**
    * A certain rank in which a relevant doc was found.
@@ -356,7 +357,7 @@ public class QualityStats {
     logger.println(prefix+format("MRR: ",M)+
         fracFormat(nf.format(getMRR())));
     logger.println(prefix+format("MAP: ",M)+
-            fracFormat(nf.format(MAPScore.getMAPScore())));//Also include MAP score
+            fracFormat(nf.format(getMAP())));//Also include MAP score
     logger.println(prefix+format("Recall: ",M)+
         fracFormat(nf.format(getRecall())));
     logger.println(prefix+format("1-call: ",M)+
@@ -447,6 +448,7 @@ public class QualityStats {
     nf.setGroupingUsed(true);
     logger.print(fracFormat(nf.format(getMRR()))+'\t');  //MRR
     logger.print(fracFormat(nf.format(getRecall()))+'\t');//Recall
+    //logger.print(fracFormat(nf.format(getMAP()))+'\t');//MAP
    // 1-call
     logger.print(fracFormat(nf.format(getOneCall()))+'\t');
     // 2-call
@@ -588,6 +590,7 @@ public class QualityStats {
        avg.NDCG[j] /=m;
        avg.pAt[j] /= m;
     }
+    avg.MAP = MAPScore.getMAPScore();
     return avg;
   }
 
@@ -641,6 +644,10 @@ public class QualityStats {
   public double getMRR() {
     return mrr;
   }
+  
+  public double getMAP() {
+	    return MAP;
+	  }
 
 
   /**
