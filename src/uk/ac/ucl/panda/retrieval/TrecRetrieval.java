@@ -118,8 +118,8 @@ public class TrecRetrieval {
 	    
             
             //batch
-             logger.print("MRR"+'\t'+"Recall"+'\t'+"1-call"+'\t'+"2-call"+'\t'+"3-call"+'\t'+"4-call"+'\t'+"5-call"+'\t'+"6-call"+'\t'+"7-call"+'\t'+"8-call"+'\t'+"9-call"+'\t'+"10-call"+'\t'+"NDCG@1"+'\t'+"NDCG@5"+'\t'+"NDCG@10"+'\t'+"NDCG@15"+'\t'+"NDCG@20"+"NDCG@35"+'\t'+"NDCG@50"+'\t'+"NDCG@70"+'\t'+"NDCG@100"+'\t'+"NDCG@200"+'\t'+"NDCG@250"+'\t'+"NDCG@400"+'\t'+"NDCG@500"+'\t'+"NDCG@600"+'\t'+"NDCG@700"+'\t');
-            for(int i =1; i<=70 ;i++){
+             logger.print("MRR"+'\t'+"Recall"+'\t'+"1-call"+'\t'+"2-call"+'\t'+"3-call"+'\t'+"4-call"+'\t'+"5-call"+'\t'+"6-call"+'\t'+"7-call"+'\t'+"8-call"+'\t'+"9-call"+'\t'+"10-call"+'\t'+"NDCG@1"+'\t'+"NDCG@5"+'\t'+"NDCG@10"+'\t'+"NDCG@15"+'\t'+"NDCG@20"+'\t'+"NDCG@35"+'\t'+"NDCG@50"+'\t'+"NDCG@70"+'\t'+"NDCG@100"+'\t'+"NDCG@200"+'\t'+"NDCG@250"+'\t'+"NDCG@400"+'\t'+"NDCG@500"+'\t'+"NDCG@600"+'\t'+"NDCG@700"+'\t'+"NDCG@1000");
+            for(int i =1; i<100 ;i++){
                 logger.print('\t'+"Precision@"+i);
             }
             
