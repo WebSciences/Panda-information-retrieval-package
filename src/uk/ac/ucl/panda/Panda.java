@@ -26,9 +26,9 @@ public class Panda {
 	// Paths
 	private final String INDEX = "../Index/";
 	private final String DATA  = "../Data/Documents/";
-	private final static String PANDA_ETC  = System.getProperty("panda.etc", "../Panda/etc/");
-	private final static String PANDA_VAR  = System.getProperty("panda.var", "../Panda/var/");
-	private final static String PANDA_HOME = System.getProperty("panda.home", "../Panda/");
+	private final static String PANDA_ETC  = System.getProperty("panda.etc", "./etc/");
+	private final static String PANDA_VAR  = System.getProperty("panda.var", "./var/");
+	private final static String PANDA_HOME = System.getProperty("panda.home", "./");
 	
 	protected String newline = System.getProperty("line.separator");
 
