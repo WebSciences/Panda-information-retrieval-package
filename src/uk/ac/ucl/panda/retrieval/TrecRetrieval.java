@@ -1,17 +1,30 @@
 package uk.ac.ucl.panda.retrieval;
 
 import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.StringTokenizer;
+
 import uk.ac.ucl.panda.applications.evaluation.trec.Judge;
 import uk.ac.ucl.panda.applications.evaluation.trec.QualityBenchmark;
 import uk.ac.ucl.panda.applications.evaluation.trec.QualityStats;
 import uk.ac.ucl.panda.applications.evaluation.trec.TrecJudge;
 import uk.ac.ucl.panda.indexing.ExtraInformation;
 import uk.ac.ucl.panda.indexing.io.TrecTopicsReader;
+import uk.ac.ucl.panda.map.ResultsList;
+import uk.ac.ucl.panda.map.ResultsList.Result;
+import uk.ac.ucl.panda.reranking.MMRReranker;
+import uk.ac.ucl.panda.reranking.PortfolioReranker;
+import uk.ac.ucl.panda.reranking.Reranker;
+import uk.ac.ucl.panda.retrieval.models.RawMaterial;
 import uk.ac.ucl.panda.retrieval.query.QualityQuery;
 import uk.ac.ucl.panda.utility.io.FileReader;
 import uk.ac.ucl.panda.utility.io.SubmissionReport;
@@ -25,6 +38,112 @@ public class TrecRetrieval {
 
         protected String fileseparator = System.getProperty("file.separator");
 
+    public void process_reranking(String index, String topics, String qrels, String var, String reranking_method, int modelNumber) throws Exception {
+    	// do the underlying scoring first.
+    	System.out.print("Processing initial scores...");
+    	process(index, topics, qrels, var, modelNumber);
+    	
+    	// rerank
+    	System.out.print("Reranking...");
+    	// hack, get the model type
+    	Class modelType = (new RawMaterial("", modelNumber)).getModelType();
+    	Reranker reranker = null;
+    	if (reranking_method.equals("mmr")) {
+    		reranker = new MMRReranker();
+    	} else if (reranking_method.equals("portfolio")) {
+    		reranker = new PortfolioReranker();
+    	} else {
+    		throw new Exception("Unsupported reranking method.");
+    	}
+    	reranker.Rerank(index, topics, qrels, var, modelType);
+	    
+    	// do evaluation after rerank
+    	System.out.print("Evaluating...");
+    	ResultsList results = getResultsFromFile(var + fileseparator + "results-reranked");
+    	TrecTopicsReader qReader = new TrecTopicsReader();
+	    QualityQuery qqs[] = qReader.readQueries(FileReader.openFileReader(topics));
+	    FileOutputStream evals =new FileOutputStream(new File(var+fileseparator+"evals-reranked"));
+	    PrintWriter logger = new PrintWriter(evals,true);
+
+	    Judge judge = new TrecJudge(FileReader.openFileReader(qrels));
+	    judge.validateData(qqs, logger);
+	    QualityStats stats[] = new QualityStats[qqs.length];
+	    
+	    for (int i = 0; i < qqs.length; i++) {
+	    	int topicNum = Integer.parseInt(qqs[i].getQueryID());
+	    	ArrayList<Result> queryResults = results.getTopicResults(topicNum);
+	    	
+	    	stats[i] = new QualityStats(judge.maxRecall(qqs[i]), 0);
+	    	for (Result r : queryResults) {
+	    		stats[i].addResult(r.rank + 1,
+	    				judge.isRelevant(r.docID, qqs[i]),
+	    				0);
+	    	}
+	    	stats[i].log(qqs[i].getQueryID() + " Stats:", 1, logger, "  ");
+	    }
+	    // print an avarage sum of the results
+	    QualityStats avg = QualityStats.average(stats);
+	    avg.log("SUMMARY", 2, logger, "  ");
+    }
+    
+	/**
+	 * This function is the same as that in the MAP package, but with a path parameter
+	 * 
+	 * @param path the path of result file
+	 * 
+	 * @return ResultsList representing the results file
+	 * 
+	 * @see uk.ac.ucl.panda.map.ResultsList
+	 */
+	public static ResultsList getResultsFromFile(String path) {
+		// Opens the results file in the Panda/var/ folder
+		FileInputStream resultsFile = null;
+		ResultsList resultsArray = new ResultsList();
+		try {
+			resultsFile = new FileInputStream(path);
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
+		if (resultsFile == null)
+			return resultsArray;
+
+		// Read in the file
+		DataInputStream resultsStream = new DataInputStream(resultsFile);
+		BufferedReader results = new BufferedReader(new InputStreamReader(
+				resultsStream));
+
+		StringTokenizer rToken;
+		String rLine;
+		String topic;
+		String docID;
+		String rank;
+		String score;
+
+		try {
+			// iterate through every line in the file
+			while ((rLine = results.readLine()) != null) {
+				rToken = new StringTokenizer(rLine);
+				// extract the meaningful information
+				topic = rToken.nextToken();
+				rToken.nextToken();
+				docID = rToken.nextToken();
+				rank = rToken.nextToken();
+				score = rToken.nextToken();
+
+				// add this result to our ResultsList
+				resultsArray.addResult(Integer.parseInt(topic), docID,
+						Integer.parseInt(rank), Double.parseDouble(score));
+
+			}
+			if (resultsFile != null)
+				resultsFile.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		return resultsArray;
+	}
 	
 	public void process (String index, String topics, String qrels, String var, int modelNumber) throws Exception{
 		

@@ -51,7 +51,17 @@ public class Panda {
 	 * Specifies whether to perform trec_eval like evaluation.
 	 */
 	protected boolean evaluation;
+	
+	/**
+	 * Specifies whether to perform a reranking task and evaluation.
+	 */
+	protected boolean reranking;
 
+	/**
+	 * The reranking method, "mmr" or "portfolio"
+	 */
+	protected String reranking_method;
+	
 	/**
 	 * Specifies batch.
 	 */
@@ -89,6 +99,10 @@ public class Panda {
 		System.out.println("  -b --batch	retrieve for batch, must be followed by argument of the form a:i:b, where a is the starting value,");
 		System.out.println("                  b is the end value and i is the increment");
 		System.out.println("  -e --evaluate	evaluates the results");
+		
+		System.out.println("  -r --reranking   perform a reranking evaluation,");
+		System.out.println("                   followed by arguments specifying of the form method:model,");
+		System.out.println("                   where method is <mmr|portfolio> and model is the number of  underlying scoring model.");
 
 		System.out.println("  -v --var   get var and mean for each query");
 		System.out.println("				   var/results with the specified qrels file");
@@ -142,6 +156,7 @@ public class Panda {
 			return ERROR_NO_ARGUMENTS;
 		boolean hasModelFlag = false;
 		boolean isBatch = false;
+		boolean isReranking = false;
 		int pos = 0;
 		while (pos < args.length) {
 			if(hasModelFlag){
@@ -169,6 +184,24 @@ public class Panda {
 					batchIncrement = 0;
 					return ERROR_WRONG_BATCH_ARGUMENT;
 				}
+			} else if (isReranking){
+				isReranking = false;
+				String[] vars = args[pos].split(":");
+				if(vars.length != 2)
+					return ERROR_WRONG_RERANKING_ARGUMENT;
+				try{
+					reranking_method = vars[0].toLowerCase();
+					if(!reranking_method.equals("mmr") && ! reranking_method.equals("portfolio")) {
+						return ERROR_WRONG_RERANKING_ARGUMENT;
+					}
+					modelNumber = Integer.parseInt(vars[1]);
+			    	if(modelNumber < 0 || modelNumber >= ModelParser.getNumberOfModels())
+			    		return ERROR_WRONG_MODEL_NUMBER;
+				}catch(NumberFormatException e){
+					reranking_method = null;
+					modelNumber = -1;
+					return ERROR_WRONG_RERANKING_ARGUMENT;
+				}
 			}else if (args[pos].equals("-h") || args[pos].equals("--help"))
 				printHelp = true;
 
@@ -180,6 +213,9 @@ public class Panda {
 
 			else if (args[pos].equals("-e") || args[pos].equals("--evaluate")) {
 				evaluation = true;
+			} else if (args[pos].equals("-r") || args[pos].equals("--reranking")) {
+				reranking = true;
+				isReranking = true;
 			} else if (args[pos].equals("-b") || args[pos].equals("--batch")) {
 				batch = true;
 				isBatch = true;
@@ -250,7 +286,7 @@ public class Panda {
 			TrecRetrieval trecsearch = new TrecRetrieval();
 			trecsearch.process(index, topics, qrels, appProp
 					.getProperty("panda.var"), modelNumber);
-		} else if (variance) {
+		} else if (reranking) {
 			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
 					+ fileseparator + "IndexDir.config");
 			String index = buf.readLine();
@@ -263,15 +299,15 @@ public class Panda {
 					+ fileseparator + "Qrels.config");
 			String qrels = buf.readLine();
 
-			// System.out.println(index);
-			// System.out.println(topics);:q!
-			// System.out.println(qrels);
-
+			// do the underlying scoring first
 			TrecRetrieval trecsearch = new TrecRetrieval();
-			trecsearch.process_var(index, topics, qrels, appProp
-					.getProperty("panda.var"));
-
-
+			trecsearch.process(index, topics, qrels, appProp
+					.getProperty("panda.var"), modelNumber);
+			
+			// reranking
+			trecsearch.process_reranking(index, topics, qrels, appProp
+					.getProperty("panda.var"), reranking_method, modelNumber);
+			
 		} else if (variance) {
 			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
 					+ fileseparator + "IndexDir.config");
@@ -412,6 +448,10 @@ public class Panda {
 			System.err
 			.println("You entered an incorrect format for the batch argument, -b must be followed by argument of the form a:i:b, where a is the starting value b is the end value and i is the increment");
 			break;
+		case ERROR_WRONG_RERANKING_ARGUMENT:
+			System.err
+			.println("You entered an incorrect format for the reranking argument, -r must be followed by argument of the form method:model, where method is <mmr|portfolio> and model is the number of  underlying scoring model.");
+			break;
 		case ARGUMENTS_OK:
 		default:
 			run(appProp);
@@ -438,5 +478,6 @@ public class Panda {
 	protected static final int ERROR_LANGUAGEMODEL_NOT_RETRIEVE = 17;
 	protected static final int ERROR_WRONG_MODEL_NUMBER = 18;
 	protected static final int ERROR_WRONG_BATCH_ARGUMENT = 19;
+	protected static final int ERROR_WRONG_RERANKING_ARGUMENT = 20;
 
 }
