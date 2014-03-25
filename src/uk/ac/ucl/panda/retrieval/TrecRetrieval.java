@@ -38,15 +38,16 @@ public class TrecRetrieval {
 
         protected String fileseparator = System.getProperty("file.separator");
 
-    public void process_reranking(String index, String topics, String qrels, String var, String reranking_method, int modelNumber) throws Exception {
+    public void process_reranking(String index, String topics, String qrels, String var,
+    		String reranking_method, int modelNumber) throws Exception {
     	// do the underlying scoring first.
-    	System.out.print("Processing initial scores...");
+    	System.err.println("Processing initial scores...");
     	process(index, topics, qrels, var, modelNumber);
     	
     	// rerank
-    	System.out.print("Reranking...");
+    	System.err.println("Reranking...");
     	// hack, get the model type
-    	Class modelType = (new RawMaterial("", modelNumber)).getModelType();
+    	Class modelType = (new RawMaterial(index, modelNumber)).getModelType();
     	Reranker reranker = null;
     	if (reranking_method.equals("mmr")) {
     		reranker = new MMRReranker();
@@ -58,7 +59,7 @@ public class TrecRetrieval {
     	reranker.Rerank(index, topics, qrels, var, modelType);
 	    
     	// do evaluation after rerank
-    	System.out.print("Evaluating...");
+    	System.err.println("Evaluating...");
     	ResultsList results = getResultsFromFile(var + fileseparator + "results-reranked");
     	TrecTopicsReader qReader = new TrecTopicsReader();
 	    QualityQuery qqs[] = qReader.readQueries(FileReader.openFileReader(topics));
@@ -84,6 +85,64 @@ public class TrecRetrieval {
 	    // print an avarage sum of the results
 	    QualityStats avg = QualityStats.average(stats);
 	    avg.log("SUMMARY", 2, logger, "  ");
+    }
+    
+    public void batch_reranking(String index, String topics, String qrels, String var,
+    		String reranking_method, int modelNumber,
+    		double batchA, double batchB, double batchIncrement) throws Exception {
+    	// do the underlying scoring first.
+    	System.err.println("Processing initial scores...");
+    	process(index, topics, qrels, var, modelNumber);
+    	
+    	// hack, get the model type
+    	Class modelType = (new RawMaterial(index, modelNumber)).getModelType();
+    	// rerank
+    	Reranker reranker = null;
+    	if (reranking_method.equals("mmr")) {
+    		reranker = new MMRReranker();
+    	} else if (reranking_method.equals("portfolio")) {
+    		reranker = new PortfolioReranker();
+    	} else {
+    		throw new Exception("Unsupported reranking method.");
+    	}
+    	
+    	// batch reranking and evaluation
+    	TrecTopicsReader qReader = new TrecTopicsReader();
+    	QualityQuery qqs[] = qReader.readQueries(FileReader.openFileReader(topics));
+	    FileOutputStream evals =new FileOutputStream(new File(var+fileseparator+"evals-reranked"));
+	    PrintWriter logger = new PrintWriter(evals,true);
+	    Judge judge = new TrecJudge(FileReader.openFileReader(qrels));
+	    judge.validateData(qqs, logger);
+	    
+		//batch
+		logger.print("MRR"+'\t'+"Recall"+'\t'+"1-call"+'\t'+"2-call"+'\t'+"3-call"+'\t'+"4-call"+'\t'+"5-call"+'\t'+"6-call"+'\t'+"7-call"+'\t'+"8-call"+'\t'+"9-call"+'\t'+"10-call"+'\t'+"NDCG@1"+'\t'+"NDCG@5"+'\t'+"NDCG@10"+'\t'+"NDCG@15"+'\t'+"NDCG@20"+'\t'+"NDCG@35"+'\t'+"NDCG@50"+'\t'+"NDCG@70"+'\t'+"NDCG@100"+'\t'+"NDCG@200"+'\t'+"NDCG@250"+'\t'+"NDCG@400"+'\t'+"NDCG@500"+'\t'+"NDCG@600"+'\t'+"NDCG@700"+'\t'+"NDCG@1000");
+		for(int i =1; i<100 ;i++){ logger.print('\t'+"Precision@"+i); }
+		logger.println();
+    	for (double a1 = batchA; a1 <= batchB; a1 += batchIncrement) {
+    		// rerank
+    		System.err.println("Reranking...(a = " + String.valueOf(a1) + ")");
+    		reranker.Rerank(index, topics, qrels, var, modelType, a1);
+    		
+    		// evaluation
+    		System.err.println("Evaluating...(a = " + String.valueOf(a1) + ")");
+    		ResultsList results = getResultsFromFile(var + fileseparator + "results-reranked");
+    		QualityStats stats[] = new QualityStats[qqs.length];
+    	    
+    	    for (int i = 0; i < qqs.length; i++) {
+    	    	int topicNum = Integer.parseInt(qqs[i].getQueryID());
+    	    	ArrayList<Result> queryResults = results.getTopicResults(topicNum);
+    	    	
+    	    	stats[i] = new QualityStats(judge.maxRecall(qqs[i]), 0);
+    	    	for (Result r : queryResults) {
+    	    		stats[i].addResult(r.rank + 1,
+    	    				judge.isRelevant(r.docID, qqs[i]),
+    	    				0);
+    	    	}
+    	    }
+    	    // print an avarage sum of the results
+    	    QualityStats avg = QualityStats.average(stats);
+    	    avg.batch_log(Double.toString(a1) , 2, logger, "  "); // batch
+    	}
     }
     
 	/**

@@ -17,6 +17,10 @@ import uk.ac.ucl.panda.utility.io.FileReader;
  * -V --version		print version information
  * -i --index	   	index a collection
  * -b --batch		retrieve for batch, must be followed by argument of the form a:i:b, where a is the starting value b is the end value and i is the increment
+ * -r --reranking   perform a reranking evaluation,
+ *                  followed by arguments specifying of the form method:model,
+ *                  where method is {mmr|portfolio>} and model is the number of  underlying scoring model.
+ * -br --batchreranking  batch reranking, format: method:model:a:i:b
  * -e --evaluate	evaluates the results
  * -v --var   		get var and mean for each query
  * -m --model   	specify model number (must be followed by an integer and used in conjunction with other arguments)
@@ -56,6 +60,11 @@ public class Panda {
 	 * Specifies whether to perform a reranking task and evaluation.
 	 */
 	protected boolean reranking;
+	
+	/**
+	 * Specifies batch reranking
+	 */
+	protected boolean batch_reranking;
 
 	/**
 	 * The reranking method, "mmr" or "portfolio"
@@ -102,7 +111,8 @@ public class Panda {
 		
 		System.out.println("  -r --reranking   perform a reranking evaluation,");
 		System.out.println("                   followed by arguments specifying of the form method:model,");
-		System.out.println("                   where method is <mmr|portfolio> and model is the number of  underlying scoring model.");
+		System.out.println("                   where method is {mmr|portfolio} and model is the number of  underlying scoring model.");
+		System.out.println("  -br --batchreranking  batch reranking, format: method:model:a:i:b");
 
 		System.out.println("  -v --var   get var and mean for each query");
 		System.out.println("				   var/results with the specified qrels file");
@@ -157,6 +167,7 @@ public class Panda {
 		boolean hasModelFlag = false;
 		boolean isBatch = false;
 		boolean isReranking = false;
+		boolean isBatchReranking = false;
 		int pos = 0;
 		while (pos < args.length) {
 			if(hasModelFlag){
@@ -179,6 +190,30 @@ public class Panda {
 					batchIncrement = Double.parseDouble(vars[1]);
 					batchB = Double.parseDouble(vars[2]);
 				}catch(NumberFormatException e){
+					batchA = 0;
+					batchB = 0;
+					batchIncrement = 0;
+					return ERROR_WRONG_BATCH_ARGUMENT;
+				}
+			} else if (isBatchReranking) {
+				isBatchReranking = false;
+				String[] vars = args[pos].split(":");
+				if(vars.length != 5)
+					return ERROR_WRONG_BATCH_ARGUMENT;
+				try{
+					reranking_method = vars[0].toLowerCase();
+					if(!reranking_method.equals("mmr") && ! reranking_method.equals("portfolio")) {
+						return ERROR_WRONG_RERANKING_ARGUMENT;
+					}
+					modelNumber = Integer.parseInt(vars[1]);
+			    	if(modelNumber < 0 || modelNumber >= ModelParser.getNumberOfModels())
+			    		return ERROR_WRONG_MODEL_NUMBER;
+					batchA = Double.parseDouble(vars[2]);
+					batchIncrement = Double.parseDouble(vars[3]);
+					batchB = Double.parseDouble(vars[4]);
+				}catch(NumberFormatException e){
+					reranking_method = null;
+					modelNumber = -1;
 					batchA = 0;
 					batchB = 0;
 					batchIncrement = 0;
@@ -216,6 +251,9 @@ public class Panda {
 			} else if (args[pos].equals("-r") || args[pos].equals("--reranking")) {
 				reranking = true;
 				isReranking = true;
+			} else if (args[pos].equals("-br") || args[pos].equals("--batchreranking")) {
+				batch_reranking = true;
+				isBatchReranking = true;
 			} else if (args[pos].equals("-b") || args[pos].equals("--batch")) {
 				batch = true;
 				isBatch = true;
@@ -299,15 +337,28 @@ public class Panda {
 					+ fileseparator + "Qrels.config");
 			String qrels = buf.readLine();
 
-			// do the underlying scoring first
-			TrecRetrieval trecsearch = new TrecRetrieval();
-			trecsearch.process(index, topics, qrels, appProp
-					.getProperty("panda.var"), modelNumber);
-			
 			// reranking
+			TrecRetrieval trecsearch = new TrecRetrieval();
 			trecsearch.process_reranking(index, topics, qrels, appProp
 					.getProperty("panda.var"), reranking_method, modelNumber);
-			
+		} else if (batch_reranking) {
+			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
+					+ fileseparator + "IndexDir.config");
+			String index = buf.readLine();
+
+			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
+					+ fileseparator + "Topics.config");
+			String topics = buf.readLine();
+
+			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
+					+ fileseparator + "Qrels.config");
+			String qrels = buf.readLine();
+
+			// batch reranking
+			TrecRetrieval trecsearch = new TrecRetrieval();
+			trecsearch.batch_reranking(index, topics, qrels, appProp
+					.getProperty("panda.var"), reranking_method, modelNumber,
+					batchA, batchB, batchIncrement);
 		} else if (variance) {
 			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
 					+ fileseparator + "IndexDir.config");
