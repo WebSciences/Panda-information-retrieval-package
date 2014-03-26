@@ -19,7 +19,7 @@ import uk.ac.ucl.panda.utility.io.FileReader;
  * -b --batch		retrieve for batch, must be followed by argument of the form a:i:b, where a is the starting value b is the end value and i is the increment
  * -r --reranking   perform a reranking evaluation,
  *                  followed by arguments specifying of the form method:model,
- *                  where method is {mmr|portfolio>} and model is the number of  underlying scoring model.
+ *                  where method is {mmr|portfolio} and model is the number of underlying scoring model.
  * -br --batchreranking  batch reranking, format: method:model:a:i:b
  * -e --evaluate	evaluates the results
  * -v --var   		get var and mean for each query
@@ -111,7 +111,7 @@ public class Panda {
 		
 		System.out.println("  -r --reranking   perform a reranking evaluation,");
 		System.out.println("                   followed by arguments specifying of the form method:model,");
-		System.out.println("                   where method is {mmr|portfolio} and model is the number of  underlying scoring model.");
+		System.out.println("                   where method is {mmr|portfolio} and model is the number of underlying scoring model.");
 		System.out.println("  -br --batchreranking  batch reranking, format: method:model:a:i:b");
 
 		System.out.println("  -v --var   get var and mean for each query");
@@ -501,7 +501,7 @@ public class Panda {
 			break;
 		case ERROR_WRONG_RERANKING_ARGUMENT:
 			System.err
-			.println("You entered an incorrect format for the reranking argument, -r must be followed by argument of the form method:model, where method is <mmr|portfolio> and model is the number of  underlying scoring model.");
+			.println("You entered an incorrect format for the reranking argument, -r must be followed by argument of the form method:model, where method is {mmr|portfolio} and model is the number of underlying scoring model.");
 			break;
 		case ARGUMENTS_OK:
 		default:

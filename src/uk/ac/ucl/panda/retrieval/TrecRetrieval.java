@@ -57,7 +57,7 @@ public class TrecRetrieval {
     		throw new Exception("Unsupported reranking method.");
     	}
     	reranker.Rerank(index, topics, qrels, var, modelType);
-	    
+	    //if (true) return;
     	// do evaluation after rerank
     	System.err.println("Evaluating...");
     	ResultsList results = getResultsFromFile(var + fileseparator + "results-reranked");

@@ -17,12 +17,12 @@ public interface Reranker {
 	 * @param var          --The path of 'var' directory
 	 * @param modelType    --The type of underlying retrieval model
 	 */
-	public void Rerank(String index, String topics, String qrels, String var, Class modelType);
+	public void Rerank(String index, String topics, String qrels, String var, Class modelType) throws Exception;
 	
 	/**
 	 * Specifying a reranking parameter
 	 * 
 	 * @param a		the reranking parameter (e.g. lambda or b)
 	 */
-	public void Rerank(String index, String topics, String qrels, String var, Class modelType, double a);
+	public void Rerank(String index, String topics, String qrels, String var, Class modelType, double a) throws Exception;
 }
