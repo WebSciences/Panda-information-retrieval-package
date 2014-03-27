@@ -57,10 +57,12 @@ public class TrecRetrieval {
     		throw new Exception("Unsupported reranking method.");
     	}
     	reranker.Rerank(index, topics, qrels, var, modelType);
-	    //if (true) return;
+    	
     	// do evaluation after rerank
     	System.err.println("Evaluating...");
-    	ResultsList results = getResultsFromFile(var + fileseparator + "results-reranked");
+    	(new File(var + fileseparator + "results")).renameTo(new File(var + fileseparator + "results-original"));
+    	(new File(var + fileseparator + "results-reranked")).renameTo(new File(var + fileseparator + "results"));
+    	ResultsList results = getResultsFromFile(var + fileseparator + "results");
     	TrecTopicsReader qReader = new TrecTopicsReader();
 	    QualityQuery qqs[] = qReader.readQueries(FileReader.openFileReader(topics));
 	    FileOutputStream evals =new FileOutputStream(new File(var+fileseparator+"evals-reranked"));
@@ -69,6 +71,7 @@ public class TrecRetrieval {
 	    Judge judge = new TrecJudge(FileReader.openFileReader(qrels));
 	    judge.validateData(qqs, logger);
 	    QualityStats stats[] = new QualityStats[qqs.length];
+	    QualityQueryParser qqParser = new SimpleQQParser("title", "body");
 	    
 	    for (int i = 0; i < qqs.length; i++) {
 	    	int topicNum = Integer.parseInt(qqs[i].getQueryID());
@@ -80,11 +83,14 @@ public class TrecRetrieval {
 	    				judge.isRelevant(r.docID, qqs[i]),
 	    				0);
 	    	}
+	    	logger.println(qqs[i].getQueryID() + "  -  " + qqParser.parse(qqs[i]));
 	    	stats[i].log(qqs[i].getQueryID() + " Stats:", 1, logger, "  ");
 	    }
 	    // print an avarage sum of the results
 	    QualityStats avg = QualityStats.average(stats);
 	    avg.log("SUMMARY", 2, logger, "  ");
+	    (new File(var + fileseparator + "results")).renameTo(new File(var + fileseparator + "results-reranked"));
+	    (new File(var + fileseparator + "results-original")).renameTo(new File(var + fileseparator + "results"));
     }
     
     public void batch_reranking(String index, String topics, String qrels, String var,
@@ -125,7 +131,9 @@ public class TrecRetrieval {
     		
     		// evaluation
     		System.err.println("Evaluating...(a = " + String.valueOf(a1) + ")");
-    		ResultsList results = getResultsFromFile(var + fileseparator + "results-reranked");
+    		(new File(var + fileseparator + "results")).renameTo(new File(var + fileseparator + "results-original"));
+        	(new File(var + fileseparator + "results-reranked")).renameTo(new File(var + fileseparator + "results"));
+    		ResultsList results = getResultsFromFile(var + fileseparator + "results");
     		QualityStats stats[] = new QualityStats[qqs.length];
     	    
     	    for (int i = 0; i < qqs.length; i++) {
@@ -142,6 +150,8 @@ public class TrecRetrieval {
     	    // print an avarage sum of the results
     	    QualityStats avg = QualityStats.average(stats);
     	    avg.batch_log(Double.toString(a1) , 2, logger, "  "); // batch
+    	    (new File(var + fileseparator + "results")).renameTo(new File(var + fileseparator + "results-reranked"));
+    	    (new File(var + fileseparator + "results-original")).renameTo(new File(var + fileseparator + "results"));
     	}
     }
     
@@ -250,8 +260,8 @@ public class TrecRetrieval {
 	    QualityStats avg = QualityStats.average(stats);
 	    avg.log("SUMMARY", 2, logger, "  ");
 	
-		
-
+	    scorelogger.close();
+	    results.close();
 		
 	}
 	
