@@ -18,7 +18,7 @@ public class GetDocTermStats {
 	protected String docDataField1 = "title";
 	protected String docDataField2 = "body";
 	boolean type = true;
-	private int totalWords = 0;
+	int totalWords = 0;
 	public String cindex;
 	public IndexReader rdr;
 	protected String fileseparator = System.getProperty("file.separator");
@@ -72,7 +72,7 @@ public class GetDocTermStats {
 		Searcher search = new Searcher(cindex);
 		DocNameExtractor xt = new DocNameExtractor("docname");
 		HashMap<String, Integer> termstats = new HashMap<String, Integer>();
-		setTotalWords(0);
+		totalWords = 0;
 		for (int j = 0; j < rdr.maxDoc(); j++) {
 			String docName = xt.docName(search, j);
 			// if (ent.containsKey(docName1) == true)
@@ -93,7 +93,7 @@ public class GetDocTermStats {
 						for (int i = 0; i < Atterms.length; i++) {
 							String id = Atterms[i];
 							termstats.put(id, AtFreq[i]);
-							setTotalWords(getTotalWords() + AtFreq[i]);
+							totalWords += AtFreq[i];
 						}
 					}
 				}
@@ -109,13 +109,11 @@ public class GetDocTermStats {
 								termstats
 										.put(id, (Integer) ((Integer) termstats
 												.get(id) + AbFreq[i]));
-								setTotalWords(getTotalWords()
-										+ AbFreq[i]);
+								totalWords += AbFreq[i];
 							} else {
 								// eprop.put(Abterms[i], AbFreq[i]);
 								termstats.put(id, AbFreq[i]);
-								setTotalWords(getTotalWords()
-										+ AbFreq[i]);
+								totalWords += AbFreq[i];
 							}
 						}
 					}
@@ -143,7 +141,7 @@ public class GetDocTermStats {
 				for (int i = 0; i < Atterms.length; i++) {
 					String id = Atterms[i];
 					termstats.put(id, AtFreq[i]);
-					setTotalWords(getTotalWords() + AtFreq[i]);
+					totalWords += AtFreq[i];
 				}
 			}
 		}
@@ -159,24 +157,16 @@ public class GetDocTermStats {
 						termstats
 								.put(id,
 										(Integer) ((Integer) termstats.get(id) + AbFreq[i]));
-						setTotalWords(getTotalWords() + AbFreq[i]);
+						totalWords += AbFreq[i];
 					} else {
 						// eprop.put(Abterms[i], AbFreq[i]);
 						termstats.put(id, AbFreq[i]);
-						setTotalWords(getTotalWords() + AbFreq[i]);
+						totalWords += AbFreq[i];
 					}
 				}
 			}
 		}
 		return termstats;
-	}
-
-	public int getTotalWords() {
-		return totalWords;
-	}
-
-	public void setTotalWords(int totalWords) {
-		this.totalWords = totalWords;
 	}
 
 }

@@ -34,7 +34,6 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 		ArrayList<HashMap<String, Integer>> results = new ArrayList<HashMap<String, Integer>>();
 		for (int j = 0; j < rdr.maxDoc(); j++) {
 			String docName = xt.docName(search, j);
-			setTotalWords(0);
 			if (docIDs.contains(docName)) {	
 				HashMap<String, Integer> termstats = new HashMap<String, Integer>();
 				int docid = j;
@@ -52,7 +51,6 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 						for (int i = 0; i < Atterms.length; i++) {
 							String id = Atterms[i];
 							termstats.put(id, AtFreq[i]);
-							setTotalWords(getTotalWords() + AtFreq[i]);
 						}
 					}
 				}
@@ -68,13 +66,9 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 								termstats
 										.put(id, (Integer) ((Integer) termstats
 												.get(id) + AbFreq[i]));
-								setTotalWords(getTotalWords()
-										+ AbFreq[i]);
 							} else {
 								// eprop.put(Abterms[i], AbFreq[i]);
 								termstats.put(id, AbFreq[i]);
-								setTotalWords(getTotalWords()
-										+ AbFreq[i]);
 							}
 						}
 					}
@@ -96,7 +90,7 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 		for (int j = 0; j < rdr.maxDoc(); j++) {
 			int count = -1;
 			String docName = xt.docName(search, j);
-			setTotalWords(0);
+			int totalWords = 0;
 			if (docIDs.containsKey(docName)) {	
 				count++;
 				HashMap<String, Integer> termstats = new HashMap<String, Integer>();
@@ -115,7 +109,7 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 						for (int i = 0; i < Atterms.length; i++) {
 							String id = Atterms[i];
 							termstats.put(id, AtFreq[i]);
-							setTotalWords(getTotalWords() + AtFreq[i]);
+							totalWords += AtFreq[i];
 						}
 					}
 				}
@@ -131,20 +125,18 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 								termstats
 										.put(id, (Integer) ((Integer) termstats
 												.get(id) + AbFreq[i]));
-								setTotalWords(getTotalWords()
-										+ AbFreq[i]);
+								totalWords += AbFreq[i];
 							} else {
 								// eprop.put(Abterms[i], AbFreq[i]);
 								termstats.put(id, AbFreq[i]);
-								setTotalWords(getTotalWords()
-										+ AbFreq[i]);
+								totalWords += AbFreq[i];
 							}
 						}
 					}
 				}
 				results.add(termstats);
 				index.add(docIDs.get(docName));
-				totalDocWords.add(getTotalWords());
+				totalDocWords.add(totalWords);
 			}
 		}
 		ArrayList<HashMap<String, Integer>> tempVector = new ArrayList<HashMap<String, Integer>>();
