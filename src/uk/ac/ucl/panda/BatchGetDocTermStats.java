@@ -15,6 +15,8 @@ import uk.ac.ucl.panda.utility.io.DocNameExtractor;
 import uk.ac.ucl.panda.utility.structure.TermFreqVector;
 
 public class BatchGetDocTermStats extends GetDocTermStats {
+	
+	private ArrayList<Integer> totalDocWords;
 
 	public BatchGetDocTermStats(String index) throws IOException,
 			ClassNotFoundException {
@@ -29,11 +31,11 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 		IndexReader rdr = IndexReader.open(cindex);
 		Searcher search = new Searcher(cindex);
 		DocNameExtractor xt = new DocNameExtractor("docname");
-		setTotalWords(0);
 		ArrayList<HashMap<String, Integer>> results = new ArrayList<HashMap<String, Integer>>();
 		for (int j = 0; j < rdr.maxDoc(); j++) {
 			String docName = xt.docName(search, j);
-			if (docIDs.contains(docName)) {
+			setTotalWords(0);
+			if (docIDs.contains(docName)) {	
 				HashMap<String, Integer> termstats = new HashMap<String, Integer>();
 				int docid = j;
 				if (rdr.isDeleted(docid)) {
@@ -81,6 +83,90 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 			}
 		}
 		return results;
+	}
+	
+	public ArrayList<HashMap<String, Integer>> GetDocLevelStats(HashMap<String, Integer> docIDs)
+			throws IOException, ClassNotFoundException {
+		IndexReader rdr = IndexReader.open(cindex);
+		Searcher search = new Searcher(cindex);
+		DocNameExtractor xt = new DocNameExtractor("docname");
+		totalDocWords = new ArrayList<Integer>();
+		ArrayList<HashMap<String, Integer>> results = new ArrayList<HashMap<String, Integer>>();
+		ArrayList<Integer> index = new ArrayList<Integer>();
+		for (int j = 0; j < rdr.maxDoc(); j++) {
+			int count = -1;
+			String docName = xt.docName(search, j);
+			setTotalWords(0);
+			if (docIDs.containsKey(docName)) {	
+				count++;
+				HashMap<String, Integer> termstats = new HashMap<String, Integer>();
+				int docid = j;
+				if (rdr.isDeleted(docid)) {
+					return null;
+				}
+				TermFreqVector tTerms = null;
+				TermFreqVector bTerms = null;
+				tTerms = rdr.getTermFreqVector(docid, docDataField1);
+				bTerms = rdr.getTermFreqVector(docid, docDataField2);
+				if (tTerms != null) {
+					if (type == true) {
+						String Atterms[] = tTerms.getTerms();
+						int AtFreq[] = tTerms.getTermFrequencies();
+						for (int i = 0; i < Atterms.length; i++) {
+							String id = Atterms[i];
+							termstats.put(id, AtFreq[i]);
+							setTotalWords(getTotalWords() + AtFreq[i]);
+						}
+					}
+				}
+				if (bTerms != null) {
+					if (type == true) {
+						String Abterms[] = bTerms.getTerms();
+						int AbFreq[] = bTerms.getTermFrequencies();
+						for (int i = 0; i < Abterms.length; i++) {
+							String id = Abterms[i];
+							if (termstats.containsKey(id)) {
+								// int updateScore = (Integer) ( (Integer)
+								// termstats.get(id) + AbFreq[i]);
+								termstats
+										.put(id, (Integer) ((Integer) termstats
+												.get(id) + AbFreq[i]));
+								setTotalWords(getTotalWords()
+										+ AbFreq[i]);
+							} else {
+								// eprop.put(Abterms[i], AbFreq[i]);
+								termstats.put(id, AbFreq[i]);
+								setTotalWords(getTotalWords()
+										+ AbFreq[i]);
+							}
+						}
+					}
+				}
+				results.add(termstats);
+				index.add(docIDs.get(docName));
+				totalDocWords.add(getTotalWords());
+			}
+		}
+		ArrayList<HashMap<String, Integer>> tempVector = new ArrayList<HashMap<String, Integer>>();
+		ArrayList<Integer> tempWords = new ArrayList<Integer>();
+		tempVector = results;
+		tempWords = totalDocWords;
+
+		for(int i=0; i<results.size(); i++){
+			results.add(index.get(i), tempVector.get(i));
+			results.remove(index.get(i)+1);
+			totalDocWords.add(index.get(i), tempWords.get(i));
+			totalDocWords.remove(index.get(i)+1);			
+		}
+		
+		return results;
+	}
+	
+	public ArrayList<Integer> getTotalDocWords() {
+		return totalDocWords;
+	}
+	public void setTotalDocWords(ArrayList<Integer> totalDocWords) {
+		this.totalDocWords = totalDocWords;
 	}
 	
 }
