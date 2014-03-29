@@ -88,11 +88,9 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 		ArrayList<HashMap<String, Integer>> results = new ArrayList<HashMap<String, Integer>>();
 		ArrayList<Integer> index = new ArrayList<Integer>();
 		for (int j = 0; j < rdr.maxDoc(); j++) {
-			int count = -1;
 			String docName = xt.docName(search, j);
 			int totalWords = 0;
 			if (docIDs.containsKey(docName)) {	
-				count++;
 				HashMap<String, Integer> termstats = new HashMap<String, Integer>();
 				int docid = j;
 				if (rdr.isDeleted(docid)) {
