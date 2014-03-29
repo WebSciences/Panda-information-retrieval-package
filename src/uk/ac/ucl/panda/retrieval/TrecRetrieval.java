@@ -121,7 +121,7 @@ public class TrecRetrieval {
 	    judge.validateData(qqs, logger);
 	    
 		//batch
-		logger.print("MRR"+'\t'+"Recall"+'\t'+"1-call"+'\t'+"2-call"+'\t'+"3-call"+'\t'+"4-call"+'\t'+"5-call"+'\t'+"6-call"+'\t'+"7-call"+'\t'+"8-call"+'\t'+"9-call"+'\t'+"10-call"+'\t'+"NDCG@1"+'\t'+"NDCG@5"+'\t'+"NDCG@10"+'\t'+"NDCG@15"+'\t'+"NDCG@20"+'\t'+"NDCG@35"+'\t'+"NDCG@50"+'\t'+"NDCG@70"+'\t'+"NDCG@100"+'\t'+"NDCG@200"+'\t'+"NDCG@250"+'\t'+"NDCG@400"+'\t'+"NDCG@500"+'\t'+"NDCG@600"+'\t'+"NDCG@700"+'\t'+"NDCG@1000");
+		logger.print("MRR"+'\t'+"Recall"+'\t'+"MAP"+'\t'+"1-call"+'\t'+"2-call"+'\t'+"3-call"+'\t'+"4-call"+'\t'+"5-call"+'\t'+"6-call"+'\t'+"7-call"+'\t'+"8-call"+'\t'+"9-call"+'\t'+"10-call"+'\t'+"NDCG@1"+'\t'+"NDCG@5"+'\t'+"NDCG@10"+'\t'+"NDCG@15"+'\t'+"NDCG@20"+'\t'+"NDCG@35"+'\t'+"NDCG@50"+'\t'+"NDCG@70"+'\t'+"NDCG@100"+'\t'+"NDCG@200"+'\t'+"NDCG@250"+'\t'+"NDCG@400"+'\t'+"NDCG@500"+'\t'+"NDCG@600"+'\t'+"NDCG@700"+'\t'+"NDCG@1000");
 		for(int i =1; i<100 ;i++){ logger.print('\t'+"Precision@"+i); }
 		logger.println();
     	for (double a1 = batchA; a1 <= batchB; a1 += batchIncrement) {
@@ -149,7 +149,7 @@ public class TrecRetrieval {
     	    }
     	    // print an avarage sum of the results
     	    QualityStats avg = QualityStats.average(stats);
-    	    avg.batch_log(Double.toString(a1) , 2, logger, "  "); // batch
+    	    avg.batch_log(Double.toString(a1) , 2, logger, "  ", true); // batch, with MAP
     	    (new File(var + fileseparator + "results")).renameTo(new File(var + fileseparator + "results-reranked"));
     	    (new File(var + fileseparator + "results-original")).renameTo(new File(var + fileseparator + "results"));
     	}

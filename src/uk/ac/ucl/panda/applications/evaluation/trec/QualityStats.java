@@ -436,7 +436,7 @@ public class QualityStats {
    * @param logger Logger.
    * @param prefix prefix before each log line.
    */
-  public void batch_log(String title, int paddLines, PrintWriter logger, String prefix) {
+  public void batch_log(String title, int paddLines, PrintWriter logger, String prefix, boolean showMAP) {
     logger.println();
     if (title!=null && title.trim().length()>0) {
       logger.println("a= "+title);
@@ -448,7 +448,7 @@ public class QualityStats {
     nf.setGroupingUsed(true);
     logger.print(fracFormat(nf.format(getMRR()))+'\t');  //MRR
     logger.print(fracFormat(nf.format(getRecall()))+'\t');//Recall
-    //logger.print(fracFormat(nf.format(getMAP()))+'\t');//MAP
+    if (showMAP) logger.print(fracFormat(nf.format(getMAP()))+'\t');//MAP
    // 1-call
     logger.print(fracFormat(nf.format(getOneCall()))+'\t');
     // 2-call
@@ -508,6 +508,10 @@ public class QualityStats {
     for (int i=0; i<paddLines; i++) {
       logger.println();
     }
+  }
+  
+  public void batch_log(String title, int paddLines, PrintWriter logger, String prefix) {
+	  batch_log(title, paddLines, logger, prefix, false); // no MAP by default
   }
 
   private static String padd = "                                    ";
