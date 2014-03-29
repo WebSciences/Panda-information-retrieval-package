@@ -17,10 +17,9 @@ import uk.ac.ucl.panda.utility.io.FileReader;
  * -V --version		print version information
  * -i --index	   	index a collection
  * -b --batch		retrieve for batch, must be followed by argument of the form a:i:b, where a is the starting value b is the end value and i is the increment
- * -r --reranking   perform a reranking evaluation,
- *                  followed by arguments specifying of the form method:model,
- *                  where method is {mmr|portfolio} and model is the number of underlying scoring model.
- * -br --batchreranking  batch reranking, format: method:model:a:i:b
+ * -r --reranking   perform a reranking evaluation, followed by an argument specifying the reranking method {mmr|portfolio},
+ *                  and the underlying scroing model is specified by -m or 0 by default.
+ * -br --batchreranking  batch reranking, format: method:a:i:b, a:i:b is like that in -b.
  * -e --evaluate	evaluates the results
  * -v --var   		get var and mean for each query
  * -m --model   	specify model number (must be followed by an integer and used in conjunction with other arguments)
@@ -109,10 +108,9 @@ public class Panda {
 		System.out.println("                  b is the end value and i is the increment");
 		System.out.println("  -e --evaluate	evaluates the results");
 		
-		System.out.println("  -r --reranking   perform a reranking evaluation,");
-		System.out.println("                   followed by arguments specifying of the form method:model,");
-		System.out.println("                   where method is {mmr|portfolio} and model is the number of underlying scoring model.");
-		System.out.println("  -br --batchreranking  batch reranking, format: method:model:a:i:b");
+		System.out.println("  -r --reranking   perform a reranking evaluation, followed by an argument specifying the reranking method {mmr|portfolio},");
+		System.out.println("                   and the underlying scroing model is specified by -m or 0 by default.");
+		System.out.println("  -br --batchreranking  batch reranking, format: method:a:i:b, a:i:b is like that in -b.");
 
 		System.out.println("  -v --var   get var and mean for each query");
 		System.out.println("				   var/results with the specified qrels file");
@@ -198,19 +196,16 @@ public class Panda {
 			} else if (isBatchReranking) {
 				isBatchReranking = false;
 				String[] vars = args[pos].split(":");
-				if(vars.length != 5)
+				if(vars.length != 4)
 					return ERROR_WRONG_BATCH_ARGUMENT;
 				try{
 					reranking_method = vars[0].toLowerCase();
 					if(!reranking_method.equals("mmr") && ! reranking_method.equals("portfolio")) {
 						return ERROR_WRONG_RERANKING_ARGUMENT;
 					}
-					modelNumber = Integer.parseInt(vars[1]);
-			    	if(modelNumber < 0 || modelNumber >= ModelParser.getNumberOfModels())
-			    		return ERROR_WRONG_MODEL_NUMBER;
-					batchA = Double.parseDouble(vars[2]);
-					batchIncrement = Double.parseDouble(vars[3]);
-					batchB = Double.parseDouble(vars[4]);
+					batchA = Double.parseDouble(vars[1]);
+					batchIncrement = Double.parseDouble(vars[2]);
+					batchB = Double.parseDouble(vars[3]);
 				}catch(NumberFormatException e){
 					reranking_method = null;
 					modelNumber = -1;
@@ -221,17 +216,11 @@ public class Panda {
 				}
 			} else if (isReranking){
 				isReranking = false;
-				String[] vars = args[pos].split(":");
-				if(vars.length != 2)
-					return ERROR_WRONG_RERANKING_ARGUMENT;
 				try{
-					reranking_method = vars[0].toLowerCase();
+					reranking_method = args[pos].toLowerCase();
 					if(!reranking_method.equals("mmr") && ! reranking_method.equals("portfolio")) {
 						return ERROR_WRONG_RERANKING_ARGUMENT;
 					}
-					modelNumber = Integer.parseInt(vars[1]);
-			    	if(modelNumber < 0 || modelNumber >= ModelParser.getNumberOfModels())
-			    		return ERROR_WRONG_MODEL_NUMBER;
 				}catch(NumberFormatException e){
 					reranking_method = null;
 					modelNumber = -1;
@@ -339,6 +328,7 @@ public class Panda {
 
 			// reranking
 			TrecRetrieval trecsearch = new TrecRetrieval();
+			if (modelNumber < 0) modelNumber = 0;
 			trecsearch.process_reranking(index, topics, qrels, appProp
 					.getProperty("panda.var"), reranking_method, modelNumber);
 		} else if (batch_reranking) {
@@ -356,6 +346,7 @@ public class Panda {
 
 			// batch reranking
 			TrecRetrieval trecsearch = new TrecRetrieval();
+			if (modelNumber < 0) modelNumber = 0;
 			trecsearch.batch_reranking(index, topics, qrels, appProp
 					.getProperty("panda.var"), reranking_method, modelNumber,
 					batchA, batchB, batchIncrement);
