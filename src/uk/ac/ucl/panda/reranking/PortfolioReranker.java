@@ -79,13 +79,13 @@ public class PortfolioReranker implements Reranker {
 		
 		for(int k=1; k<topicResults.size(); k++){
 			double[] increase = new double[topicResults.size()];
-			double totalSecMoment = 0.d;
 			
 			for(int j=0; j<topicResults.size(); j++){
+				double totalSecMoment = 0.d;
+				
 				if(topicResults.get(j).docID.equals("selected")){
 					increase[j] = Double.NEGATIVE_INFINITY;
 					continue;
-					
 				}					
 				
 				for(int i=0; i<k; i++){
@@ -135,7 +135,7 @@ public class PortfolioReranker implements Reranker {
 			for(int i=0; i<topicResults.size(); i++){
 				for(int j=0; j<topicResults.size(); j++){
 					if(i == j)
-						covarianceMatrix[i][j] = 100000000d* (-1)* topicResults.get(i).score * (scoreSum - topicResults.get(i).score) / ((scoreSum * scoreSum)*(scoreSum + 1));
+						covarianceMatrix[i][j] = 100000000d* (-1) * topicResults.get(i).score * (scoreSum - topicResults.get(i).score) / ((scoreSum * scoreSum)*(scoreSum + 1));
 					else
 						covarianceMatrix[i][j] = 100000000d* (-1) * (topicResults.get(i).score * topicResults.get(j).score) / ((scoreSum * scoreSum)*(scoreSum + 1));
 				}
@@ -196,7 +196,7 @@ public class PortfolioReranker implements Reranker {
 		
 		else
 			System.err.println("Unexpected model number specified!");
-
+		
 		System.err.println("covariance calculated!");
 		return covarianceMatrix;
 	}

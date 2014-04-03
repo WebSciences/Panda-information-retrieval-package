@@ -2,6 +2,7 @@ package uk.ac.ucl.panda;
 
 /**
  * @author Yiwei Chen
+ * @author Yifei Rong
  */
 
 import java.io.IOException;
@@ -118,14 +119,9 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 						for (int i = 0; i < Abterms.length; i++) {
 							String id = Abterms[i];
 							if (termstats.containsKey(id)) {
-								// int updateScore = (Integer) ( (Integer)
-								// termstats.get(id) + AbFreq[i]);
-								termstats
-										.put(id, (Integer) ((Integer) termstats
-												.get(id) + AbFreq[i]));
+								termstats.put(id, (Integer) ((Integer) termstats.get(id) + AbFreq[i]));
 								totalWords += AbFreq[i];
 							} else {
-								// eprop.put(Abterms[i], AbFreq[i]);
 								termstats.put(id, AbFreq[i]);
 								totalWords += AbFreq[i];
 							}
@@ -147,8 +143,7 @@ public class BatchGetDocTermStats extends GetDocTermStats {
 			results.remove(index.get(i)+1);
 			totalDocWords.add(index.get(i), tempWords.get(i));
 			totalDocWords.remove(index.get(i)+1);			
-		}
-		
+		}	
 		return results;
 	}
 	
