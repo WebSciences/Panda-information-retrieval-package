@@ -7,6 +7,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 
 import uk.ac.ucl.panda.BatchGetDocTermStats;
@@ -60,71 +61,71 @@ public class PortfolioReranker implements Reranker {
         for (int i = 0; i < topicIds.length; i++) {
             System.out.println("Reranking query " + String.valueOf(i + 1));
             ArrayList<Result> topicResults = results.getTopicResults(topicIds[i]);
-            double[][] covarianceMatrics = calCovarianceMatrix(topicResults, modelType);
-            applyReranking(topicResults, covarianceMatrics, modelType);
+            applyReranking(topicResults, calCovarianceMatrix(topicResults, modelType), modelType);
         }
         outputResults(results, scorelogger); 
         scorelogger.close();
         outputfile.close();
 	}
 
-	private void applyReranking(ArrayList<Result> topicResults, double[][] covarianceMatrics, Class modelType) {
+	private void applyReranking(ArrayList<Result> topicResults, HashMap<String, Double> covarMatrics, Class modelType) {
 		ArrayList<Result> newResults = new ArrayList<Result>();
+		ArrayList<Result> tempResults = new ArrayList<Result>();
+		
+		for(int i=0; i<topicResults.size(); i++){
+			tempResults.add(topicResults.get(i));
+		}
+		
 		newResults.add(topicResults.get(0));
 		topicResults.remove(0);
-	    topicResults.add(0, results.new Result("selected", 0, 0.d));
 	    
-		ArrayList<Integer> originalIndex = new ArrayList<Integer>();
-	    originalIndex.add(0);
-		
-		for(int k=1; k<topicResults.size(); k++){
-			double[] increase = new double[topicResults.size()];
-			
-			for(int j=0; j<topicResults.size(); j++){
-				double totalSecMoment = 0.d;
-				
-				if(topicResults.get(j).docID.equals("selected")){
-					increase[j] = Double.NEGATIVE_INFINITY;
-					continue;
-				}					
-				
-				for(int i=0; i<k; i++){
-					if(i == 0)
-						totalSecMoment += covarianceMatrics[originalIndex.get(i)][j];
-					else
-						totalSecMoment += covarianceMatrics[originalIndex.get(i)][j]/Math.log(i+1);	 
-				}				
-				
+	    for(int k=1; k<tempResults.size(); k++){   	
+	    	double[] increase = new double[topicResults.size()];
+	    	
+	    	for(int j=0; j<topicResults.size(); j++){
+	    		double totalSecMoment = 0.d;
+	    		
+				for(int i=0; i<k; i++){						
+					if(i == 0 || i == 1)
+						totalSecMoment += covarMatrics.get(newResults.get(i).docID+topicResults.get(j).docID);
+					else{
+						double weight = Math.log(2) / (Math.log10(i+1) * Math.log(10)) / 124;
+						totalSecMoment += covarMatrics.get(newResults.get(i).docID+topicResults.get(j).docID)*weight;
+					}					 
+				}	
+	    		
 				if(k == 1)
-					increase[j] = topicResults.get(j).score - b*Math.abs(covarianceMatrics[j][j]) - 2*b*Math.abs(totalSecMoment);
-				else
-					increase[j] = topicResults.get(j).score - b*Math.abs(covarianceMatrics[j][j])/Math.log(j) - 2*b*Math.abs(totalSecMoment);
-			}
-			
+					increase[j] = topicResults.get(j).score - b*Math.abs(covarMatrics.get(topicResults.get(j).docID+topicResults.get(j).docID)) - 2*b*Math.abs(totalSecMoment);
+				else{
+					double weight = Math.log(2) / (Math.log10(k+1) * Math.log(10)) / 124;
+					increase[j] = topicResults.get(j).score - b*Math.abs(covarMatrics.get(topicResults.get(j).docID+topicResults.get(j).docID))*weight - 2*b*Math.abs(totalSecMoment);
+				}   		
+	    	}
+	    	
 			double max = increase[0];
 			int index = 0;
             for(int i=0; i<increase.length; i++){
-            	if(increase[i]>max){
+            	if(increase[i] > max){
             		max = increase[i];
             		index = i;
             	}
             }
-
+            
             topicResults.get(index).score = increase[index];
             topicResults.get(index).rank = k;
             newResults.add(topicResults.get(index));
-            originalIndex.add(index);
-			
-    		topicResults.remove(index);
-    	    topicResults.add(index, results.new Result("selected", 0, 0.d));	  	    
-		}
-		
-		topicResults.clear();
-		topicResults.addAll(newResults);
+            topicResults.remove(index);	    		
+	    }      
+	    
+    	if(topicResults.size() == 0){
+    		topicResults.addAll(newResults);
+    	}
 	}
 	
-	private double[][] calCovarianceMatrix(ArrayList<Result> topicResults, Class modelType) throws ClassNotFoundException, IOException{
-		double[][] covarianceMatrix = new double[topicResults.size()][topicResults.size()];
+	private HashMap<String, Double> calCovarianceMatrix(ArrayList<Result> topicResults, Class modelType) throws ClassNotFoundException, IOException{
+//		double[][] covarianceMatrix = new double[topicResults.size()][topicResults.size()];
+		HashMap<String, Double> covarMatrics = new HashMap<String, Double>();
+		double covaiance = 0.0d;
 		
 		if(modelType.equals(Language_u.class) || modelType.equals(Language_lambda.class)){
 			double scoreSum = 0.d;
@@ -135,9 +136,11 @@ public class PortfolioReranker implements Reranker {
 			for(int i=0; i<topicResults.size(); i++){
 				for(int j=0; j<topicResults.size(); j++){
 					if(i == j)
-						covarianceMatrix[i][j] = 100000000d* (-1) * topicResults.get(i).score * (scoreSum - topicResults.get(i).score) / ((scoreSum * scoreSum)*(scoreSum + 1));
+						covaiance = 100000000d* (-1) * topicResults.get(i).score * (scoreSum - topicResults.get(i).score) / ((scoreSum * scoreSum)*(scoreSum + 1));				    																
 					else
-						covarianceMatrix[i][j] = 100000000d* (-1) * (topicResults.get(i).score * topicResults.get(j).score) / ((scoreSum * scoreSum)*(scoreSum + 1));
+						covaiance = 100000000d* (-1) * (topicResults.get(i).score * topicResults.get(j).score) / ((scoreSum * scoreSum)*(scoreSum + 1));
+					
+					covarMatrics.put(topicResults.get(i).docID+topicResults.get(j).docID, covaiance);
 				}
 			}
 		}
@@ -186,10 +189,11 @@ public class PortfolioReranker implements Reranker {
 			for(int i=0; i<topicResults.size(); i++){
 				for(int j=0; j<topicResults.size(); j++){
 					double totalVariance = 0.d;
-					for(int k=0; k<totalTermVector.size(); k++){
+					for(int k=0; k<totalTermVector.size(); k++)
 						totalVariance += (rawMatirx[i][k] - meanFreqs[i])*(rawMatirx[j][k] - meanFreqs[j]);
-					}
-					covarianceMatrix[i][j] = totalVariance/totalTermVector.size();
+					
+					covaiance = totalVariance/totalTermVector.size();
+					covarMatrics.put(topicResults.get(i).docID+topicResults.get(j).docID, covaiance);
 				}
 			}			
 		}
@@ -198,7 +202,7 @@ public class PortfolioReranker implements Reranker {
 			System.err.println("Unexpected model number specified!");
 		
 		System.err.println("covariance calculated!");
-		return covarianceMatrix;
+		return covarMatrics;
 	}
 
 	private void outputResults(ResultsList results, PrintWriter scorelogger) {
