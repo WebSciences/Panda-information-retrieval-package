@@ -88,7 +88,7 @@ public class MMRReranker implements Reranker {
 				results.remove(0);
 				continue;
 			}
-			if (new_results.size() >= maxRerank) { // limited to maxRerank
+			if (new_results.size() > maxRerank) { // limited to maxRerank
 				results.get(0).rank = new_results.size();
 				new_results.add(results.get(0));
 				results.remove(0);
@@ -97,7 +97,7 @@ public class MMRReranker implements Reranker {
 			double max_score = Integer.MIN_VALUE;
 			int max_index = -1;
 			for (int i = 0; i < results.size(); i++) {
-				double max_similarity = 0.0;
+				double max_similarity = Integer.MIN_VALUE;
 				for (int j = 0; j < new_results.size(); j++) {
 					double similarity = getDocSimilarity(i, j);
 					if (similarity > max_similarity) max_similarity = similarity;
