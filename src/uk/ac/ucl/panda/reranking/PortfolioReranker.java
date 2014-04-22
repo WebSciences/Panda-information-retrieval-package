@@ -7,7 +7,6 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 
 import uk.ac.ucl.panda.BatchGetDocTermStats;
@@ -26,12 +25,13 @@ import uk.ac.ucl.panda.retrieval.models.Language_u;
 
 public class PortfolioReranker implements Reranker {
 	
-	double b = 1.0d;
+	double b = 3.0d;
 	GetDocTermStats gtdcs = null;
 	BatchGetDocTermStats bgtdcs = null;
 	String inputFile = null;
 	String outputFile = null;
 	ResultsList results = null;
+	double scoreSum;
 
 	
 	@Override
@@ -75,7 +75,8 @@ public class PortfolioReranker implements Reranker {
 		for(int i=0; i<topicResults.size(); i++){
 			tempResults.add(topicResults.get(i));
 		}
-		
+
+		topicResults.get(0).score = topicResults.get(0).score;
 		newResults.add(topicResults.get(0));
 		topicResults.remove(0);
 	    
@@ -94,12 +95,14 @@ public class PortfolioReranker implements Reranker {
 					}					 
 				}	
 	    		
-				if(k == 1)
-					increase[j] = topicResults.get(j).score - b*Math.abs(covarMatrics.get(topicResults.get(j).docID+topicResults.get(j).docID)) - 2*b*Math.abs(totalSecMoment);
-				else{
-					double weight = Math.log(2) / (Math.log10(k+1) * Math.log(10)) / 124;
-					increase[j] = topicResults.get(j).score - b*Math.abs(covarMatrics.get(topicResults.get(j).docID+topicResults.get(j).docID))*weight - 2*b*Math.abs(totalSecMoment);
-				}   		
+				if(modelType.equals(BM25.class) || modelType.equals(Language_u.class) || modelType.equals(Language_lambda.class)){
+					if(k == 1)
+						increase[j] = topicResults.get(j).score - b*Math.abs(covarMatrics.get(topicResults.get(j).docID+topicResults.get(j).docID)) - 2*b*Math.abs(totalSecMoment);
+					else{
+						double weight = Math.log(2) / (Math.log10(k+1) * Math.log(10)) / 124;
+						increase[j] = topicResults.get(j).score - b*Math.abs(covarMatrics.get(topicResults.get(j).docID+topicResults.get(j).docID))*weight - 2*b*Math.abs(totalSecMoment);
+					}   					
+				}						
 	    	}
 	    	
 			double max = increase[0];
@@ -127,25 +130,7 @@ public class PortfolioReranker implements Reranker {
 		HashMap<String, Double> covarMatrics = new HashMap<String, Double>();
 		double covaiance = 0.0d;
 		
-		if(modelType.equals(Language_u.class) || modelType.equals(Language_lambda.class)){
-			double scoreSum = 0.d;
-			
-			for(int i=0; i<topicResults.size(); i++)
-				scoreSum += topicResults.get(i).score;
-			
-			for(int i=0; i<topicResults.size(); i++){
-				for(int j=0; j<topicResults.size(); j++){
-					if(i == j)
-						covaiance = 100000000d* (-1) * topicResults.get(i).score * (scoreSum - topicResults.get(i).score) / ((scoreSum * scoreSum)*(scoreSum + 1));				    																
-					else
-						covaiance = 100000000d* (-1) * (topicResults.get(i).score * topicResults.get(j).score) / ((scoreSum * scoreSum)*(scoreSum + 1));
-					
-					covarMatrics.put(topicResults.get(i).docID+topicResults.get(j).docID, covaiance);
-				}
-			}
-		}
-		
-		else if(modelType.equals(BM25.class)){
+		if(modelType.equals(BM25.class) || modelType.equals(Language_u.class) || modelType.equals(Language_lambda.class)){
 			double[] meanFreqs = new double[topicResults.size()];
 			ArrayList<Integer> totalWords = new ArrayList<Integer>();
 			ArrayList<HashMap<String, Integer>> resultStatistics = new ArrayList<HashMap<String, Integer>>();
