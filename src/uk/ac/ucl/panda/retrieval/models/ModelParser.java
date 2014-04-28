@@ -33,6 +33,7 @@ public class ModelParser {
     	models.add(Language_u.class); // model number = 3
     	models.add(Language_AdV.class); // model number = 4
     	models.add(Language_lambda.class); // model number = 5
+    	models.add(BM25PNW.class); // model number = 6
     	// Add new IR models here, remember its position in 'models' is also the model number
     	//	 models.add('your_IR_model'.class);
     	
