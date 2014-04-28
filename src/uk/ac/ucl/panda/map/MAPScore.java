@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.StringTokenizer;
 
 import uk.ac.ucl.panda.map.ResultsList.Result;
@@ -17,7 +18,7 @@ import uk.ac.ucl.panda.utility.io.FileReader;
  * Use this class to implement the Mean Average Precision (MAP) metric by
  * completing the getMAPScore() method below.
  * 
- * @author Marc Sloan
+ * @author Marc Sloan, Abhishek Aggarwal
  * 
  */
 public class MAPScore {
@@ -36,15 +37,42 @@ public class MAPScore {
 	 * @see uk.ac.ucl.panda.map.ResultsList
 	 */
 	public static double getMAPScore() {
+
 		ResultsList results = getResultsFromFile();
 		QRelList qrels = getQRelsFromFile();
-
-		/**
-		 * Your solution here
-		 */
-
-		return 0.0; //return MAP score here
+		Integer[] topics = qrels.getTopics();
+		double MAP = 0.0;		//Stores the MAP score
+		for (int topic : topics){	//calculate AP for each topic
+			HashMap<String, Boolean> relDocList = qrels.getTopicQRels(topic);
+			ArrayList<Result> rankings = results.getTopicResults(topic);
+			int numRel = 0;
+			double topicAP = 0.0;	//AP for each topic
+			for(int docNum=0; docNum<rankings.size(); docNum++){
+				Result docResult = rankings.get(docNum);
+				if(relDocList.get(docResult.docID) != null && relDocList.get(docResult.docID) )
+				{
+					numRel++;	
+					double precision = (double)numRel/(docNum+1);
+					topicAP += precision;
+				}
+			}
+			int totalRelevant = 0; //total relevant documents for this query
+			Iterator<Boolean> relDocIter = relDocList.values().iterator();
+			while (relDocIter.hasNext()){
+				if(relDocIter.next()){
+					totalRelevant++;
+				}
+			}
+			if(totalRelevant > 0){				//to prevent division by zero
+				topicAP = topicAP/totalRelevant;  //divided by #relevant docs to get avg.
+			}
+			MAP += topicAP;
+		}
+		MAP = MAP/topics.length;     //divided by #queries to get avg.
+		return MAP; //return MAP score here
 	}
+		
+			
 
 	/**
 	 * Can be used to run your getMAPScore() method and prints out the MAP score for testing purposes

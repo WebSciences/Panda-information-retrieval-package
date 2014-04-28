@@ -16,16 +16,24 @@
  */
 package uk.ac.ucl.panda.applications.evaluation.trec;
 
+/**
+*
+*	@author Marc Sloan, Abhishek Aggarwal
+* 	@author xxms
+*/
+
 import java.io.File;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Vector;
+
 import uk.ac.ucl.panda.indexing.io.FilterIndexReader;
 import uk.ac.ucl.panda.indexing.io.IndexReader;
 import uk.ac.ucl.panda.retrieval.MeanVarianceScoreDoc;
@@ -81,7 +89,7 @@ public class QualityBenchmark {
   
   /** maximal number of results to collect for each query. Default: 1000. */
   private int maxResults = 1000;
-
+  
   /**
    * Create a QualityBenchmark.
    * @param qqs quality queries to run.
@@ -124,12 +132,12 @@ public class QualityBenchmark {
   //ucl batch
    public  QualityStats [] execute(Judge judge, SubmissionReport submitRep, 
                                   PrintWriter qualityLog, PrintWriter scorelogger) throws Exception {
-          return execute(judge, submitRep,qualityLog, scorelogger, 0,0);
+          return execute(judge, submitRep,qualityLog, scorelogger, 0,0, 0, -1, 10);
 
    }
 
    public  QualityStats [] execute(Judge judge, SubmissionReport submitRep,
-                                  PrintWriter qualityLog, PrintWriter scorelogger, double a1, double a2) throws Exception {
+                                  PrintWriter qualityLog, PrintWriter scorelogger, double a1, double a2, int MMRorPortfolio, double b1, int maxdocs) throws Exception {
     int nQueries = Math.min(maxQueries, qualityQueries.length);
     QualityStats stats[] = new QualityStats[nQueries]; 
     ///////////
@@ -152,9 +160,14 @@ public class QualityBenchmark {
       if(a2!=0){
         f_td = Correlation_Adjust(td, a2);
       }
+      
+      if(MMRorPortfolio > 0){
+    	  if(MMRorPortfolio == 1)
+    		f_td = Portfolio_IR_Adjust(td, maxdocs, b1);  //lambda = 0.5 as optimum found using validation			
+    	  else if(MMRorPortfolio == 2)
+    		f_td = MMR_Adjust(td, maxdocs, b1);		//b = -1 as optimum found using validation
+      }
     
-        
-
  long searchTime = System.currentTimeMillis()-t1;
 
       outresult(qq, f_td, scorelogger);
@@ -303,6 +316,229 @@ public class QualityBenchmark {
         }
 
 
+   private TopDocs MMR_Adjust(TopDocs td, int maxdocs, double lambda) throws IOException {
+	
+	   //Original doc list as well relevance score list
+	   ScoreDoc[] originalDocs = td.scoreDocs; 
+	   ScoreDoc[] reorderedDocs = new ScoreDoc[originalDocs.length]; 
+	   
+	   //copy original ranking into reordered
+	   HashMap<Integer, Integer> originalRanking = new HashMap<Integer, Integer>();
+	   for (int i=0; i<td.scoreDocs.length; i++){
+		   originalRanking.put(td.scoreDocs[i].doc, i+1);
+		   reorderedDocs[i] = new ScoreDoc(originalDocs[i].doc, originalDocs[i].score);
+		   reorderedDocs[i].doc = originalDocs[i].doc;
+	   }
+	  
+	   HashMap<Integer, Integer> reorderedRanking = new HashMap<Integer, Integer>();
+	   reorderedRanking.put(reorderedDocs[0].doc, 1); //the first document remains same
+	
+	   //applying MMR criterion
+	   for (int rank=1; rank < maxdocs; rank++){
+		   double maxScore = -10000.0;  // will contain maximum score
+		   int maxScoreDoc = -1;
+		   
+		   //outer max operation
+		   for (int k = 0; k < maxdocs; k++){
+			   if(reorderedRanking.containsKey(originalDocs[k].doc)){
+			   		continue;
+			   }
+			   double maxSubScore = -10000;  //contains max second term in MMR formula
+			   double subScore;
+			   
+			   //inner max operation
+			   for (int i=0; i<rank; i++ ){
+				   subScore = pearsonBetweenDocs(originalDocs[k].doc, reorderedDocs[i].doc);
+				   if ( subScore >  maxSubScore){
+					   maxSubScore = subScore;
+				   }
+			   }
+			   double score = lambda * originalDocs[k].score - (1-lambda) * maxSubScore;
+			   if (score > maxScore){
+				   maxScoreDoc = originalDocs[k].doc;
+				   maxScore = score;
+			   }
+		   }
+		   reorderedDocs[rank].doc = maxScoreDoc;
+		   reorderedDocs[rank].score = maxScore;
+		   reorderedRanking.put(maxScoreDoc, rank+1);
+	   }
+       
+	   //appending docs beyond maxdocs to reordered list
+	   int appendCount = 0;
+	   for( int i=0; i< originalDocs.length; i++){
+		   if (reorderedRanking.containsKey(originalDocs[i].doc)){
+			   continue;
+		   }
+		   else{
+			   int newRank = maxdocs + appendCount;
+			   reorderedDocs[newRank].doc = originalDocs[i].doc;
+			   reorderedDocs[newRank].score = Math.min(originalDocs[i].score, reorderedDocs[newRank-1].score-0.1 );
+			   reorderedRanking.put(originalDocs[i].doc, newRank);
+			   appendCount++;
+		   }
+	   }
+	   
+	 //Just printing results for sanity check
+       for (int i = 0; i < maxdocs; i++) {
+    	   System.out.format("Doc ID: %d, New Pos.: %d, Orig. Pos.: %d%n", 
+		   originalDocs[i].doc,  reorderedRanking.get(originalDocs[i].doc), originalRanking.get(originalDocs[i].doc));
+		}
+       TopDocs finalResults = new TopDocs(reorderedDocs.length, reorderedDocs, reorderedDocs[0].score);	
+       return finalResults;
+	}
+
+   
+   
+   /***
+    * Function to do Portfolio IR type ranking adjustment based on approximate sequential update.
+    * @param td : TopDocs type object that is originally returned by IR model
+    * @param maxdocs : max number of documents to be reordered using this algorithm. The document
+    * 				   after maxdocs are left unaltered		
+    * @param b : the parameter that controls the diversity.
+    * @return return reordered TopDocs type object
+    * @throws Exception
+    */
+   private TopDocs Portfolio_IR_Adjust(TopDocs td, int maxdocs, double b) throws Exception {
+
+	   int discountLogBase = 2;  // log base for discounted weight 
+	   double weight;            // discounted weight
+	   double sigma = 1;   // assumed constant for non probabilistic models.
+	   //Original doc list as well relevance score list
+	   ScoreDoc[] originalDocs = td.scoreDocs;
+	   ScoreDoc[] reorderedDocs = new ScoreDoc[originalDocs.length]; 
+	   
+	   HashMap<Integer, Integer> originalRanking = new HashMap<Integer, Integer>();
+	   for (int i=0; i<td.scoreDocs.length; i++){
+		   originalRanking.put(td.scoreDocs[i].doc, i+1);
+		   reorderedDocs[i] = new ScoreDoc(originalDocs[i].doc, originalDocs[i].score);
+		   reorderedDocs[i].doc = originalDocs[i].doc;
+	   }
+	  
+	   HashMap<Integer, Integer> reorderedRanking = new HashMap<Integer, Integer>();
+	   reorderedRanking.put(reorderedDocs[0].doc, 1); //the first document remains same
+	 
+	   //Sequential update, starting with rank 2
+	   for (int rank=1; rank < maxdocs; rank++){
+		   double maxScore = -10000.0;
+		   int maxScoreDoc = -1;
+		   
+		   //performs max operation
+		   for (int k = 0; k < maxdocs; k++){
+			   if(reorderedRanking.containsKey(originalDocs[k].doc)){
+			   		continue;
+			   }
+			   if ((k+1) < discountLogBase)
+				   weight = 1;
+			   else
+				   weight =  (Math.log(discountLogBase)/Math.log(k+1));
+			   double score = originalDocs[k].score  - b * weight * sigma*sigma;
+			   for (int i=0; i<rank; i++ ){
+				   if ((i+1) < discountLogBase)
+					   weight = 1;
+				   else
+					   weight =  (Math.log(discountLogBase)/Math.log(i+1));
+				   score =  score - 2 * b * weight * pearsonBetweenDocs(originalDocs[k].doc, reorderedDocs[i].doc);
+			   }
+			   if (score > maxScore){
+				   maxScoreDoc = originalDocs[k].doc;
+				   maxScore = score;
+			   }
+		   }
+		   reorderedDocs[rank].doc = maxScoreDoc;
+		   reorderedDocs[rank].score = maxScore;
+		   reorderedRanking.put(maxScoreDoc, rank+1);
+	   }
+       
+	   //appending docs beyond maxdocs to reordered list
+	   int appendCount = 0;
+	   for( int i=0; i< originalDocs.length; i++){
+		   if (reorderedRanking.containsKey(originalDocs[i].doc)){
+			   continue;
+		   }
+		   else{
+			   int newRank = maxdocs + appendCount;
+			   reorderedDocs[newRank].doc = originalDocs[i].doc;
+			   reorderedDocs[newRank].score = Math.min(originalDocs[i].score, reorderedDocs[newRank-1].score-0.1 );
+			   reorderedRanking.put(originalDocs[i].doc, newRank);
+			   appendCount++;
+		   }
+	   }
+	   
+	   
+	   //Just printing results for sanity check
+       for (int i = 0; i < maxdocs; i++) {
+    	   System.out.format("Doc ID: %d, New Pos.: %d, Orig. Pos.: %d%n", 
+		   originalDocs[i].doc,  reorderedRanking.get(originalDocs[i].doc), originalRanking.get(originalDocs[i].doc));
+		}
+       TopDocs finalResults = new TopDocs(reorderedDocs.length, reorderedDocs, reorderedDocs[0].score);	
+       return finalResults;
+   }
+   
+   /***
+    * Function to calculate the pearsonCorrelation Coefficient based on term frequencies
+    * of the documents
+    * @param doc1 : document ID of First Document
+    * @param doc2 : document ID of second Document
+    * @return pearsonCorrelation Coefficient based on term frequencies of doc1 and doc2
+    * @throws IOException
+    */
+   private double pearsonBetweenDocs(int doc1, int doc2) throws IOException{
+	   TermFreqVector doc1_tfv;   // document in consideration
+	   TermFreqVector doc2_tfv;  //store TFV of already selected documents
+	   doc1_tfv = reader.getTermFreqVector(doc1, docDataField);
+	   doc2_tfv = reader.getTermFreqVector(doc2, docDataField);
+	   
+	   String[] terms_doc1 = doc1_tfv.getTerms();
+	   String[] terms_doc2 = doc2_tfv.getTerms();
+	   ArrayList<String> union = new ArrayList<String>();
+	   for(String s : terms_doc1){ union.add(s);}
+	   for(String s : terms_doc2){ if(!union.contains(s)){ union.add(s); } }
+	   double[] doc1_tf = new double[union.size()];
+	   double[] doc2_tf = new double[union.size()];
+	   for(int term = 0; term<union.size(); term++){
+		   doc1_tf[term] = 0.0;
+		   doc2_tf[term] = 0.0;
+		   if ( doc2_tfv.indexOf(union.get(term)) >= 0){
+			   doc2_tf[term] = (double)doc2_tfv.getTermFrequencies()[doc2_tfv.indexOf(union.get(term))];
+		   }
+		   if ( doc1_tfv.indexOf(union.get(term)) >= 0){
+			   doc1_tf[term] = (double)doc1_tfv.getTermFrequencies()[doc1_tfv.indexOf(union.get(term))];
+		   }
+	   }
+	   return getPearsonCorrelation(doc1_tf,doc2_tf);
+   }
+   
+   /*** 
+    * Computes Pearson Correlation Coefficient between two score vectors
+    * @param scores1 : a type double vector
+    * @param scores2 : a type double vector
+    * @return Pearson Correlation between scores1 and scores2
+    */
+   public static double getPearsonCorrelation(double[] scores1,double[] scores2){ 
+       double result = 0;
+       double sum_sq_x = 0;
+       double sum_sq_y = 0;
+       double sum_coproduct = 0;
+       double mean_x = scores1[0];
+       double mean_y = scores2[0];
+       for(int i=2;i<scores1.length+1;i+=1){
+           double sweep =Double.valueOf(i-1)/i;
+           double delta_x = scores1[i-1]-mean_x;
+           double delta_y = scores2[i-1]-mean_y;
+           sum_sq_x += delta_x * delta_x * sweep;
+           sum_sq_y += delta_y * delta_y * sweep;
+           sum_coproduct += delta_x * delta_y * sweep;
+           mean_x += delta_x / i;
+           mean_y += delta_y / i;
+       }
+       double pop_sd_x = (double) Math.sqrt(sum_sq_x/scores1.length);
+       double pop_sd_y = (double) Math.sqrt(sum_sq_y/scores1.length);
+       double cov_x_y = sum_coproduct / scores1.length;
+       result = cov_x_y / (pop_sd_x*pop_sd_y);
+       return result;
+   }
+   
    private TopDocsMeanVariance Correlation_Adjust_NDCG(TopDocsMeanVariance td, double c) throws IOException {
         double log2toe = 1.0d / Math.log(2.0d);
         TopDocsMeanVariance f_td = td;

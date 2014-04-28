@@ -1,5 +1,11 @@
 package uk.ac.ucl.panda;
 
+/**
+*
+*	@author Marc Sloan, Abhishek Aggarwal
+* 	@author xxms
+*/
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.Properties;
@@ -56,7 +62,17 @@ public class Panda {
 	 * Specifies batch.
 	 */
 	protected boolean batch;
+	
+	/**
+	 * Specifies batch rank adjust.
+	 */
+	protected boolean batchAdjust;
 
+	/** 
+	 * specifies rank-adjust
+	 */
+	protected boolean rankAdjustMMR;
+	protected boolean rankAdjustPortfolio;
 	/**
 	 * Specifies var and mean.
 	 */
@@ -70,7 +86,18 @@ public class Panda {
 	protected int modelNumber;
 	
 	double batchA = 0, batchB = 0, batchIncrement = 0;
+	double batchAdjustA = 0, batchAdjustB = 0, batchAdjustIncrement = 0;
+	
+	
+	 /** default b in Portfolio IR re-adjusting */
+	 double b = -1;
+	  
+	 /** default lambda in MMR re-adjusting */
+	 double lambda = 0.5;
 
+	 /** maxdocs to be readjusted */
+	 int maxdocsAdjust = 10;
+	 
 	protected void version() {
 		System.out.println("LuceneTrec version: 1.0 alpha");
 		// System.out.println("Built on ");
@@ -88,8 +115,13 @@ public class Panda {
 		System.out.println("  -i --index	   index a collection");
 		System.out.println("  -b --batch	retrieve for batch, must be followed by argument of the form a:i:b, where a is the starting value,");
 		System.out.println("                  b is the end value and i is the increment");
+		System.out.println("  -bMMR --batchMMR	MMR readjust for batch, must be followed by argument of the form numDocs:a:i:b, where numDocs is constant integer and specifies number of ranks to readjust,");
+		System.out.println("                    where a is the starting value of lambda, b is the end value and i is the increment");
+		System.out.println("  -bPIR --batchPortfolio	Portfolio readjust for batch, must be followed by argument of the form numDocs:a:i:b, where numDocs is constant integer and specifies number of ranks to readjust,");
+		System.out.println("                    where a is the starting value of lambda, b is the end value and i is the increment");
 		System.out.println("  -e --evaluate	evaluates the results");
-
+        System.out.println("  -MMR 'numDocs'	runs evaluation and readjusts ranks of first numDocs documents with (lambda = 0.5) MMR based rank re-adjusting to increase diversity ");
+        System.out.println("  -Portfolio 'numDocs'	runs evaluation and readjusts ranks of first 'numDocs' with Portfolio with (b= -1) based rank re-adjusting to increase diversity ");
 		System.out.println("  -v --var   get var and mean for each query");
 		System.out.println("				   var/results with the specified qrels file");
 		System.out.println("				   in the file etc/trec.qrels");
@@ -142,6 +174,8 @@ public class Panda {
 			return ERROR_NO_ARGUMENTS;
 		boolean hasModelFlag = false;
 		boolean isBatch = false;
+		boolean isBatchAdjust = false;
+		boolean isEvaluateAdjust = false;
 		int pos = 0;
 		while (pos < args.length) {
 			if(hasModelFlag){
@@ -169,9 +203,41 @@ public class Panda {
 					batchIncrement = 0;
 					return ERROR_WRONG_BATCH_ARGUMENT;
 				}
-			}else if (args[pos].equals("-h") || args[pos].equals("--help"))
+			}else if(isBatchAdjust){
+				isBatchAdjust = false;
+				String[] vars = args[pos].split(":");
+				if(vars.length != 4  )
+					return ERROR_WRONG_BATCH_ARGUMENT;
+				try{
+					int maxdocs = Integer.parseInt(vars[0]);
+					if (maxdocs <= 2){
+						System.out.println("number of documents to readjust must be greater than 2, using 10 (default) instead");
+					}else
+						maxdocsAdjust = maxdocs;
+					batchAdjustA = Double.parseDouble(vars[1]);
+					batchAdjustIncrement = Double.parseDouble(vars[2]);
+					batchAdjustB = Double.parseDouble(vars[3]);
+				}catch(NumberFormatException e){
+					batchAdjustA = 0;
+					batchAdjustB = 0;
+					batchAdjustIncrement = 0;
+					return ERROR_WRONG_BATCH_ARGUMENT;
+				}
+			}else if(isEvaluateAdjust){
+				isEvaluateAdjust = false;
+				try{
+					int maxdocs = Integer.parseInt(args[pos]);
+					if (maxdocs <= 2){
+						System.out.println("number of documents to readjust must be greater than 2, using 10 (default) instead");
+					}else
+						maxdocsAdjust = maxdocs;
+					
+				}catch(NumberFormatException e){
+					return ERROR_WRONG_BATCH_ARGUMENT;
+				}
+			}
+			else if (args[pos].equals("-h") || args[pos].equals("--help"))
 				printHelp = true;
-
 			else if (args[pos].equals("-i") || args[pos].equals("--index"))
 				indexing = true;
 
@@ -180,9 +246,25 @@ public class Panda {
 
 			else if (args[pos].equals("-e") || args[pos].equals("--evaluate")) {
 				evaluation = true;
-			} else if (args[pos].equals("-b") || args[pos].equals("--batch")) {
+			}else if (args[pos].equals("-MMR")) {
+				rankAdjustMMR = true;
+				isEvaluateAdjust = true;
+				evaluation = true;
+			}else if (args[pos].equals("-Portfolio")) {
+				rankAdjustPortfolio = true;
+				isEvaluateAdjust = true;
+				evaluation = true;
+			}else if (args[pos].equals("-b") || args[pos].equals("--batch")) {
 				batch = true;
 				isBatch = true;
+			}else if (args[pos].equals("-bMMR") || args[pos].equals("--batchMMR")) {
+				batchAdjust = true;
+				isBatchAdjust = true;
+				rankAdjustMMR = true;
+			}else if (args[pos].equals("-bPIR") || args[pos].equals("--batchPortfolio")) {
+				batchAdjust = true;
+				isBatchAdjust = true;
+				rankAdjustPortfolio = true;
 			} else if (args[pos].equals("-p") || args[pos].equals("--plot")) {
 				plot = true;
 			} else if (args[pos].equals("-m") || args[pos].equals("--model")) {
@@ -229,8 +311,31 @@ public class Panda {
 			TrecRetrieval trecsearch = new TrecRetrieval();
 			trecsearch.batch(index, topics, qrels, appProp
 					.getProperty("panda.var"), modelNumber, batchA, batchB, batchIncrement);
-		}
-		else if (evaluation) {
+		}else if(batchAdjust){
+			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
+					+ fileseparator + "IndexDir.config");
+			String index = buf.readLine();
+
+			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
+					+ fileseparator + "Topics.config");
+			String topics = buf.readLine();
+
+			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
+					+ fileseparator + "Qrels.config");
+			String qrels = buf.readLine();
+			// System.out.println(index);
+			// System.out.println(topics);
+			// System.out.println(qrels);
+			TrecRetrieval trecsearch = new TrecRetrieval();
+			int MMRorPortfolio = 0;
+			if (rankAdjustMMR)
+				MMRorPortfolio = 1;
+			else if(rankAdjustPortfolio)
+				MMRorPortfolio = 2;
+			
+			trecsearch.batchAdjust(index, topics, qrels, appProp
+					.getProperty("panda.var"), modelNumber, MMRorPortfolio, batchAdjustA, batchAdjustB, batchAdjustIncrement, maxdocsAdjust);
+		}else if (evaluation) {
 			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
 					+ fileseparator + "IndexDir.config");
 			String index = buf.readLine();
@@ -248,9 +353,22 @@ public class Panda {
 			// System.out.println(qrels);
 
 			TrecRetrieval trecsearch = new TrecRetrieval();
+			int MMRorPortfolio = 0;
+			double b1 = 0;
+			if (rankAdjustMMR)
+			{
+				MMRorPortfolio = 1;
+				b1 = lambda;
+			}	
+			else if(rankAdjustPortfolio)
+			{
+				MMRorPortfolio = 2;
+				b1 = b;
+			}
 			trecsearch.process(index, topics, qrels, appProp
-					.getProperty("panda.var"), modelNumber);
-		} else if (variance) {
+					.getProperty("panda.var"), modelNumber, MMRorPortfolio, b1, maxdocsAdjust);
+			
+		}else if (variance) {
 			buf = FileReader.openFileReader(appProp.getProperty("panda.etc")
 					+ fileseparator + "IndexDir.config");
 			String index = buf.readLine();

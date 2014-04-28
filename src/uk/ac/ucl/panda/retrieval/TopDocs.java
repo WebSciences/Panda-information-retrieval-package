@@ -1,5 +1,7 @@
 package uk.ac.ucl.panda.retrieval;
 
+import java.util.ArrayList;
+
 /**
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -33,6 +35,20 @@ public class TopDocs implements java.io.Serializable {
   public double getMaxScore() {
       return maxScore;
   }
+  
+  /**  added by clive 17/3/14 */
+  public ScoreDoc[] getScoreDocs(){
+	  return scoreDocs;
+  }
+  
+  public ArrayList<Integer> getScoreDocs(int n){
+	  ArrayList<Integer> docs = new ArrayList<Integer>(); 
+	  for (int i=0; i<n; i++){
+		  docs.add( scoreDocs[i].doc);
+	  }
+	  return docs;
+  }
+
   
   /** Expert: Sets the maximum score value encountered. */
   public void setMaxScore(double maxScore) {

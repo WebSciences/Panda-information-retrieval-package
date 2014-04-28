@@ -68,6 +68,7 @@ public class GetDocTermStats {
 	 */
 	public HashMap<String, Integer> GetDocLevelStats(String docID)
 			throws IOException, ClassNotFoundException {
+		docID = docID.replaceAll("\\s", "");
 		IndexReader rdr = IndexReader.open(cindex);
 		Searcher search = new Searcher(cindex);
 		DocNameExtractor xt = new DocNameExtractor("docname");
